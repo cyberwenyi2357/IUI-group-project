@@ -1,6 +1,9 @@
 import * as React from "react";
 
 const startInterview:React.FC = () => {
+    const [isRecording, setIsRecording] = React.useState(false);
+    const [rt, setRT] = React.useRef(null);
+    const [microphone, setMicrophone] = React.useRef(null);
     type mergeBuffersProps ={
         lhs: Int16Array;
         rhs: Int16Array;
@@ -68,7 +71,28 @@ const startInterview:React.FC = () => {
         <button style={{position: 'absolute', right: '3vw', top: '1vw', zIndex: 2}}>Start interview</button>
     );
     const run=async()=>{
+            if(isRecording){
+            //stop recording;
+            if(rt){
+                await rt.close(false);
+                setRT(null);
+            }
+            if(microphone){
+                microphone.stopRecording();
+                setMicrophone(null);
+            }
+        }else{
+                console.log("Waiting for connection with AssemblyAI ...");
+                setMicrophone(createMicrophone());
+                await microphone.requestPermission();
+                const response =await fetch("/token");
+                const data = await response.json();
+                if(data.error){
+                    alert(data.error);
+                    return;
+                }
 
+            }
     }
 };
 
