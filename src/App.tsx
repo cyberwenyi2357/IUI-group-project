@@ -1,5 +1,5 @@
 import {useState, useCallback, useEffect} from 'react';
-import startInterview from "./startInterview.tsx";
+import StartInterview from "./StartInterview.tsx";
 import {
     ReactFlow,
     Background,
@@ -14,7 +14,7 @@ import {
 import '@xyflow/react/dist/style.css';
 
 import './index.css'
-import StartInterview from "./startInterview.tsx";
+import StartInterview from "./StartInterview.tsx";
 let microphone;
 let rt;
 function EditableNode({ id, data }: NodeProps) {
