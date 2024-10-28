@@ -1,5 +1,8 @@
 import {useState, useCallback, useEffect} from 'react';
 import StartInterview from "./StartInterview.tsx";
+import './index.css'
+import CircleNode from "./circleNode.tsx";
+
 import {
     ReactFlow,
     Background,
@@ -13,10 +16,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
-import './index.css'
-import StartInterview from "./StartInterview.tsx";
-let microphone;
-let rt;
+
 function EditableNode({ id, data }: NodeProps) {
     const [label, setLabel] = useState(data.label);
 
@@ -37,12 +37,14 @@ function EditableNode({ id, data }: NodeProps) {
 }
 
 
-const nodeTypes = { editable: EditableNode };
+const nodeTypes = { editable: EditableNode,
+circle: CircleNode,
+};
 
 function App() {
     const initialNodes: Node[] = [
         { id: '1', position: { x: 10, y: 20 }, data: { label: '1' }, type: 'editable' },
-        // { id: '2', position: { x: 100, y: 200 }, data: { label: '2' }, type: 'editable' }
+        { id: '2', position: { x: 100, y: 200 }, data: { label: '2' }, type: 'circle' }
     ];
     const initialEdges: Edge[] = [];
     const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
@@ -78,7 +80,7 @@ function App() {
 
     return (
         <div style={{ height: '95vh', width: '100vw'}}>
-<StartInterview/>
+            <StartInterview/>
             <button style={{position:'absolute',left:'3vw',top:'1vw',zIndex:2}} onClick={handleAddQuestion}>Add question</button>
             <ReactFlowProvider>
                 <ReactFlow
