@@ -15,6 +15,7 @@ import {
     type NodeProps
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import {GroupNode} from "@xyflow/react/dist/esm/components/Nodes/GroupNode";
 
 
 function EditableNode({ id, data }: NodeProps) {
@@ -35,16 +36,30 @@ function EditableNode({ id, data }: NodeProps) {
         </div>
     );
 }
+function groupNode({ id, data }: NodeProps){
+    return(
+        <div>{data.label}</div>
+    )
+}
 
 
 const nodeTypes = { editable: EditableNode,
 circle: CircleNode,
+    group: groupNode,
 };
 
 function App() {
     const initialNodes: Node[] = [
-        { id: '1', position: { x: 10, y: 20 }, data: { label: '1' }, type: 'editable' },
-        { id: '2', position: { x: 100, y: 200 }, data: { label: '2' }, type: 'circle' }
+        {
+            id: '4',
+            data: { label: 'Basic User Experience' },
+            position: { x: 320, y: 200 },
+            className: 'light',
+            style: { backgroundColor: 'rgba(255, 0, 0, 0.2)', width: 300, height: 300 },
+            type: 'group',
+        },
+        { id: '1', position: { x: 10, y: 20 }, data: { label: '1' }, type: 'editable' ,parentId:'4',extent:'parent'},
+        { id: '2', position: { x: 100, y: 200 }, data: { label: '2' }, type: 'circle',parentId:'4',extent:'parent' },
     ];
     const initialEdges: Edge[] = [];
     const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
@@ -81,7 +96,8 @@ function App() {
     return (
         <div style={{ height: '95vh', width: '100vw'}}>
             <StartInterview/>
-            <button style={{position:'absolute',left:'3vw',top:'1vw',zIndex:2}} onClick={handleAddQuestion}>Add question</button>
+            <button style={{position:'absolute',left:'3vw',top:'1vw',zIndex:2}}>Add Topic</button>
+            <button style={{position:'absolute',left:'10vw',top:'1vw',zIndex:2}} onClick={handleAddQuestion}>Add question</button>
             <ReactFlowProvider>
                 <ReactFlow
                     nodes={nodes}
@@ -89,7 +105,7 @@ function App() {
                     onNodesChange={onNodesChange}
                     onNodeDragStop={onNodeDragStop}
                     nodeTypes={nodeTypes}
-                    className="intersection-flow"
+                    className="react-flow-subflows-example"
                     minZoom={0.2}
                     maxZoom={4}
                     fitView

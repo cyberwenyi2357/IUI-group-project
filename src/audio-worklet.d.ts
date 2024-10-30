@@ -1,7 +1,5 @@
-// audio-worklet.d.ts
 declare class AudioWorkletProcessor {
     constructor();
-    readonly port: MessagePort;
     process(
         inputs: Float32Array[][],
         outputs: Float32Array[][],
@@ -14,10 +12,8 @@ declare function registerProcessor(
     processorCtor: typeof AudioWorkletProcessor
 ): void;
 
-interface AudioParamDescriptor {
-    name: string;
-    defaultValue?: number;
-    minValue?: number;
-    maxValue?: number;
-    automationRate?: 'a-rate' | 'k-rate';
+interface AudioWorkletGlobalScope {
+    registerProcessor: typeof registerProcessor;
 }
+
+declare var globalThis: AudioWorkletGlobalScope;
