@@ -5,37 +5,43 @@ const RealTimeTranscription = forwardRef((props, ref) => {
     const [transcription, setTranscription] = useState('');
     const [isRecording, setIsRecording] = useState(false);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-    const wsRef = useRef<WebSocket | null>(null);
+    const containerRef = useRef(null);
 
     useEffect(() => {
      
         // 建立 WebSocket 连接
-        wsRef.current = new WebSocket('ws://localhost:8080');
-        wsRef.current.onopen = () => {
+        const wsRef= new WebSocket('ws://localhost:8080');
+        wsRef.onopen = () => {
             console.log('WebSocket connected');
-            
+            wsRef.send('start');
         };
 
-        wsRef.current.onerror = (error) => {
+        wsRef.onerror = (error) => {
             console.error('WebSocket error:', error);
         };
-        wsRef.current.onmessage = (event) => {
+        wsRef.onmessage = (event) => {
             setTranscription((prev) => prev + event.data + '\n');
         };
         return () => {
-            wsRef.current?.close();
+            if(wsRef.readyState===1){
+                wsRef.close();
+            }
+            
         };
 
     }, []);
+    useImperativeHandle(ref, () => ({
+        getTranscriptionContent: () => transcription,
+    }));
 
     const startRecording = async () => {
         try {
             // 请求麦克风权限
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            // const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             
-            //创建 MediaRecorder
-            mediaRecorderRef.current = new MediaRecorder(stream);
-            wsRef.current?.send('start');
+            // //创建 MediaRecorder
+            // mediaRecorderRef.current = new MediaRecorder(stream);
+            // wsRef.current?.send('start');
             // // 每收集到数据就发送给服务器
             // mediaRecorderRef.current.ondataavailable = (event) => {
             //     if (event.data.size > 0 && wsRef.current) {
@@ -69,9 +75,7 @@ const RealTimeTranscription = forwardRef((props, ref) => {
     }, [isRecording]);
 
 
-    useImperativeHandle(ref, () => ({
-        getTranscriptionContent: () => transcription,
-    }));
+ 
 
     const getRecent = (text: string) => {
         const lines = text.split('\n').filter(line => line.trim() !== '');
@@ -80,10 +84,12 @@ const RealTimeTranscription = forwardRef((props, ref) => {
     };
 
     return (
-        <div>
+        <div ref={containerRef}>
 
-           <div>{getRecent(transcription)}</div>
-                <button style={{position: 'absolute', right: '5vw', top: '1vw', zIndex: 6}} onClick={()=>{setIsRecording(!isRecording)}}>{isRecording?'Stop':'Start'}</button>
+           <div>
+            {getRecent(transcription)}
+            </div>
+                {/* <button style={{position: 'absolute', right: '5vw', top: '1vw', zIndex: 6}} onClick={()=>{setIsRecording(!isRecording)}}>{isRecording?'Stop':'Start'}</button> */}
 
         </div>
     );

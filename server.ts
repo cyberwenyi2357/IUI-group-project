@@ -5,7 +5,7 @@ import { AssemblyAI } from 'assemblyai';
 
 const wss = new WebSocketServer({ port: 8080 });
 
-wss.on('connection', (ws) => {
+wss.on('connection', (ws:WebSocket) => {
     console.log('Client connected');
 
     const client = new AssemblyAI({
@@ -35,10 +35,10 @@ wss.on('connection', (ws) => {
     });
 
     ws.on('message', (message: string) => {
-        if (message === 'start') {
+        if (message == 'start') {
             console.log('Starting recording');
             transcriber.connect().then(() => {
-                const recording = recorder({
+                const recording = recorder.record({
                     channels: 1,
                     sampleRate: 16000,
                     audioType: 'wav',
@@ -55,7 +55,7 @@ wss.on('connection', (ws) => {
                 });
             });
         }else{
-            
+            console.log('received other message',message);
         }
     });
 });
