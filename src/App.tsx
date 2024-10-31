@@ -1,5 +1,5 @@
-import {useState, useCallback, useEffect} from 'react';
-import StartInterview from "./StartInterview.tsx";
+import {useState, useCallback, useEffect, useRef} from 'react';
+import RealTimeTranscription from './RealTimeTranscription';
 import './index.css'
 import CircleNode from "./circleNode.tsx";
 
@@ -63,7 +63,7 @@ function App() {
     ];
     const initialEdges: Edge[] = [];
     const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-
+    const realTimeTranscriptionRef = useRef(null);
 
     const onNodeDragStop = useCallback((_, node) => {
         setNodes((nds) =>
@@ -95,7 +95,6 @@ function App() {
 
     return (
         <div style={{ height: '95vh', width: '100vw'}}>
-            <StartInterview/>
             <button style={{position:'absolute',left:'3vw',top:'1vw',zIndex:2}}>Add Topic</button>
             <button style={{position:'absolute',left:'10vw',top:'1vw',zIndex:2}} onClick={handleAddQuestion}>Add question</button>
             <ReactFlowProvider>
@@ -111,6 +110,7 @@ function App() {
                     fitView
                 >
                     <MiniMap zoomable pannable nodeClassName={'intersection-flow'} />
+                    <RealTimeTranscription ref={realTimeTranscriptionRef}/>
                     <Background />
                     <Controls />
                 </ReactFlow>

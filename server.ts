@@ -1,31 +1,63 @@
-// server.ts
-import express from 'express';
-import dotenv from 'dotenv';
-import cors from 'cors'
-import {AssemblyAI} from "assemblyai";
-dotenv.config();
 
-const app = express();
-const aai = new AssemblyAI({ apiKey: process.env.ASSEMBLYAI_API_KEY });
-app.get('/token', async(_req, res) => {
-    // 从环境变量获取 API key
-    const token = await aai.realtime.createTemporaryToken({ expires_in: 3600 });
-    res.header('Access-Control-Allow-Origin', 'http://localhost:5173');
-    res.header('Access-Control-Allow-Methods', 'GET, POST');
-    res.header('Access-Control-Allow-Headers', 'Content-Type');
-    if (!aai) {
-        res.json({ error: 'API key not found' });
-        return;
-    }
-    res.json({ token });
+import { WebSocketServer } from 'ws';
+import recorder  from 'node-record-lpcm16';
+import { AssemblyAI } from 'assemblyai';
 
+const wss = new WebSocketServer({ port: 8080 });
+
+wss.on('connection', (ws) => {
+    console.log('Client connected');
+
+    const client = new AssemblyAI({
+        apiKey: 'e18e8b76cbcb4b1394db420ad738cf30',
+    });
+
+    const transcriber = client.realtime.transcriber({
+        sampleRate: 16000,
+    });
+
+    transcriber.on('open', ({ sessionId }: { sessionId: string }) => {
+        console.log(`Session opened with ID: ${sessionId}`);
+    });
+
+    transcriber.on('error', (error: Error) => {
+        console.error('Error:', error);
+    });
+
+    transcriber.on('close', (code: number, reason: string) => {
+        console.log('Session closed:', code, reason);
+    });
+
+    transcriber.on('transcript', (transcript: { text: string; message_type: string }) => {
+        if (transcript.text && transcript.message_type === 'FinalTranscript') {
+            ws.send(transcript.text);
+        }
+    });
+
+    ws.on('message', (message: string) => {
+        if (message === 'start') {
+            console.log('Starting recording');
+            transcriber.connect().then(() => {
+                const recording = recorder({
+                    channels: 1,
+                    sampleRate: 16000,
+                    audioType: 'wav',
+                });
+
+                recording.stream().on('data', (buffer: Buffer) => {
+                    transcriber.sendAudio(buffer);
+                });
+
+                ws.on('close', async () => {
+                    console.log('Stopping recording');
+                    recording.stop();
+                    await transcriber.close();
+                });
+            });
+        }else{
+            
+        }
+    });
 });
-app.use(cors({
-    origin: 'http://localhost:5173', // Vite 开发服务器的默认地址
-    methods: ['GET', 'POST'],
-    credentials: true
-}));
 
-app.listen(3001, () => {
-    console.log('Server running on port 3001');
-});
+console.log('WebSocket server started on ws://localhost:8080');
