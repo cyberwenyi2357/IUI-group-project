@@ -18,7 +18,7 @@ const NodeComponent: React.FC<NodeProps> = ({ id }) => {
     return (
         <>
             <div  className="wrapper gradient">
-                <div className="inner">{label || 'two years ago'}</div>
+                <div className="inner">{label || '  '}</div>
             </div>
         </>
     );
