@@ -9,30 +9,56 @@ import {
     Controls,
     ReactFlowProvider,
     useNodesState,
+    useReactFlow,
     MiniMap,
     type Edge,
     type Node,
     type NodeProps
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { GroupNode } from "@xyflow/react/dist/esm/components/Nodes/GroupNode";
 import { openai } from './openai.ts';
+
+
+interface Category {
+    category: string;
+    questions: string[];
+}
+
+interface Result {
+    categories: Category[];
+}
 
 
 function EditableNode({ id, data }: NodeProps) {
     const [label, setLabel] = useState(data.label);
 
-    const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const handleChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
         setLabel(event.target.value);
     };
 
     return (
-        <div style={{ padding: 10, border: '1px solid #000', backgroundColor: '#ffffff', borderRadius: 2 }}>
-            <input
-                type="text"
-                value={label}
+        <div style={{ padding: 10, border: '1px solid #000', borderRadius: 2 }}>
+            <textarea
+                value={label as string}
                 onChange={handleChange}
-                style={{ width: '100%', border: 'none', textAlign: 'center' }}
+                style={{
+                    width: '100%',
+                    border: 'none',
+                    textAlign: 'center',
+                    resize: 'none',
+                    overflow: 'hidden',
+                    minHeight: '20px',
+                    backgroundColor: 'transparent',
+                    fontFamily: 'inherit',
+                    fontSize: 'inherit',
+                    lineHeight: '1.5',
+                }}
+                rows={1}
+                onInput={(e) => {
+                    const target = e.target as HTMLTextAreaElement;
+                    target.style.height = 'auto';
+                    target.style.height = target.scrollHeight + 'px';
+                }}
             />
         </div>
     );
@@ -51,56 +77,120 @@ const nodeTypes = {
 
 function App() {
     const initialNodes: Node[] = [
-        // {
-        //     id: '4',
-        //     data: { label: 'Basic User Experience' },
-        //     position: { x: 320, y: 200 },
-        //     className: 'light',
-        //     style: { backgroundColor: 'rgba(255, 0, 0, 0.2)', width: 300, height: 300 },
-        //     type: 'group',
-        // },
-        // { id: '1', position: { x: 10, y: 20 }, data: { label: '1' }, type: 'editable' ,parentId:'4',extent:'parent'},
-        // { id: '2', position: { x: 100, y: 200 }, data: { label: '2' }, type: 'circle',parentId:'4',extent:'parent' },
+
     ];
     const initialEdges: Edge[] = [];
     const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
     const realTimeTranscriptionRef = useRef(null);
     const [showModal, setShowModal] = useState(false);
     const [scriptText, setScriptText] = useState('');
+    const [questionScript,setQuestionScript]=useState<Result | null>(null);
+    const [firstNodeId, setFirstNodeId] = useState<string | null>(null);
+    const newNodes: Node[] = [];
+    let xOffset = 50;
+    let nodeCounter = 0; 
+    // const { getIntersectingNodes } = useReactFlow();
     const onNodeDragStop = useCallback((_, node) => {
         setNodes((nds) =>
             nds.map((n) => (n.id === node.id ? { ...n, position: node.position } : n))
         );
     }, [setNodes]);
-    // Effect to update button position to the position of the last node in the list
-    // const handleAddQuestion = () => {
-    //     if (nodes.length > 0) {
-    //         // Get the last node
-    //         const lastNode = nodes[nodes.length - 1];
-    //         // Calculate new node's id and position
-    //         const newId = String(Number(lastNode.id) + 1); // New id as last node's id + 1
-    //         const newPosition = { x: lastNode.position.x, y: lastNode.position.y + 60 }; // New position below the last node
-    //         // Create the new node
-    //         const newNode: Node = {
-    //             id: newId,
-    //             position: newPosition,
-    //             data: { label: newId },
-    //             type: 'editable',
-    //         };
-
-    //         // Add the new node to the current list of nodes
-    //         setNodes((nds) => [...nds, newNode]);
-    //     }
-    // };
+    // const onNodeDragStop = useCallback((_, draggedNode) => {
+    //     setNodes((nodes) => {
+    //         // 首先更新被拖拽节点的位置
+    //         const updatedNodes = nodes.map(node => 
+    //             node.id === draggedNode.id 
+    //                 ? { ...node, position: draggedNode.position }
+    //                 : node
+    //         );
+            
+    //         // 然后使用 updateNodePositions 调整所有节点的位置
+    //         return updateNodePositions(updatedNodes);
+    //     });
+    // }, [setNodes, updateNodePositions]); 
+    // const onNodeDrag = useCallback((_, draggedNode: Node) => {
+    //     setNodes((nodes) => {
+    //         const updatedNodes = [...nodes];
+    //         // 获取与拖动节点相交的所有节点
+    //         const intersectingNodes = getIntersectingNodes(draggedNode).filter(
+    //             node => (node.type === 'editable' || node.type === 'circle') && node.id !== draggedNode.id
+    //         );
+            
+    //         // 如果有相交的节点，计算并应用推力
+    //         intersectingNodes.forEach(node => {
+    //             // 计算推力
+    //             const dx = node.position.x - draggedNode.position.x;
+    //             const dy = node.position.y - draggedNode.position.y;
+    //             const distance = Math.sqrt(dx * dx + dy * dy);
+                
+    //             // 设置最小距离和推力强度
+    //             const minDistance = 100;
+    //             const repulsionStrength = 20;
+                
+    //             if (distance < minDistance) {
+    //                 const force = (minDistance - distance) / minDistance * repulsionStrength;
+    //                 const nodeIndex = updatedNodes.findIndex(n => n.id === node.id);
+                    
+    //                 if (nodeIndex !== -1) {
+    //                     const newPosition = {
+    //                         x: node.position.x + (dx / distance) * force,
+    //                         y: node.position.y + (dy / distance) * force
+    //                     };
+    //                     updatedNodes[nodeIndex] = {
+    //                         ...node,
+    //                         position: newPosition
+    //                     };
+    //                 }
+    //             }
+                
+    //         });
+    //         return updatedNodes;
+    //     }, [setNodes,getIntersectingNodes]);
+    // }
     const handleNodeCreate = (newNode: Node) => {
         setNodes((nodes) => [...nodes, newNode]);
     };
+    const createGroupNode = (category: string, questionsLength: number, currentCounter: number, xPos: number): Node => {
+        const groupHeight = questionsLength * 60 + 40;
+        return {
+            id: `Group-${currentCounter}`,
+            type: 'group',
+            data: { label: category },
+            position: { x: xPos, y: 100 },
+            style: {
+                backgroundColor: 'rgba(192, 192, 192, 0.5)',
+                width: 300,
+                height: groupHeight,
+                padding: '20px'
+            }
+        };
+    };
+    const createQuestionNode = (question: string, currentCounter: number, parentId: string, questionCounter: number): Node => {
+        const width = Math.max(question.length * 8, 80); // minimum width of 100px
+        return {
+            id: `${currentCounter}`,
+            type: 'editable',
+            data: { label: question },
+            position: { x: 20, y: questionCounter * 70 + 50 },
+            parentId: parentId,
+            extent: 'parent',
+            draggable: true,
+            style: {
+                backgroundColor: 'rgba(255, 255, 255, 1)',
+                overflow: 'visible',
+                whiteSpace: 'pre-wrap', 
+                height: 'auto',  
+            }
+        };
+    };
+
     const handleUpload = async () => {
+        const combinedTexts: string[] = [];
         try {
             const response = await openai.chat.completions.create({
                 model: "gpt-4o",
                 messages: [{
-                    role: "system", content: `Analyze the given text and extract question categories and specific questions.
+                    role: "system", content: `Analyze the given text and extract question categories and specific questions.If you find there are some introduction sentences at the start of each question category, you can add it to the category name.
             Return the result in the following JSON format:{
                 [
                     {
@@ -124,37 +214,37 @@ function App() {
             setShowModal(false)
             const result = JSON.parse(response.choices[0].message.content || "{}");
             console.log('Parsed categories:', result);
-            //创建节点数组
-            const newNodes: Node[] = [];
-            let yOffset = 100;
-            result.categories.forEach((category: any, categoryIndex: number) => {
-                const groupHeight = category.questions.length * 60 + 40;
-                const groupNode: Node = {
-                    id: `category-${categoryIndex}`,
-                    type: 'group',
-                    data: { label: category.category },
-                    position: { x: 100, y: yOffset },
-                    style: {
-                        backgroundColor: 'rgba(192, 192, 192, 0.5)',
-                        width: 300,
-                        height: groupHeight,
-                        padding: '20px'
-                    }
-                };
+            setQuestionScript(result);
+            
+            result.categories.forEach((category: any) => {
+                let questionCounterForEachGroup=0;
+                const groupNode = createGroupNode(
+                    category.category,
+                    category.questions.length,
+                    nodeCounter,
+                    xOffset
+                );
                 newNodes.push(groupNode);
-                category.questions.forEach((question: string, questionIndex: number) => {
-                    const questionNode: Node = {
-                        id: `question-${categoryIndex}-${questionIndex}`,
-                        type: 'editable',
-                        data: { label: question },
-                        position: { x: 20, y: questionIndex * 80 + 50 }, // 在组内垂直排列
-                        parentId: `category-${categoryIndex}`, // 设置父节点
-                        extent: 'parent', // 限制在父节点内移动
-                        draggable: true
-                    };
+                const currentGroupId = nodeCounter;
+                if (nodeCounter === 0) {
+                    setFirstNodeId(groupNode.id);
+                }
+                category.questions.forEach((question: string) => {
+                    
+                    const combinedText = `${category.category}: ${question}`;
+                    combinedTexts.push(combinedText);
+                    const questionNode = createQuestionNode(
+                        question,
+                        nodeCounter,
+                        `Group-${currentGroupId}`,
+                        questionCounterForEachGroup
+                    );
                     newNodes.push(questionNode);
+                    nodeCounter++;
+                    questionCounterForEachGroup++;
                 });
-                yOffset += groupHeight + 50;
+                
+                xOffset += 300;
                 setNodes(newNodes);
             });
         } catch (error) {
@@ -164,8 +254,76 @@ function App() {
             setShowModal(false);
             setScriptText('');
         };
-        
+        fetch('http://localhost:8070/initial-embedding-for-questions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(combinedTexts),
+        }).then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log(`Successfully generated embeddings for all texts`);
+            } 
+        }).catch(error => {
+            console.error('Error sending texts for embedding:', error);
+        });
     }
+    const handleAnswerNodeUpdate = (keywords:string) => {
+        setNodes((nodes) =>
+            {
+                // 找到最后一个 circle 类型的节点
+                const lastCircleNode = [...nodes].reverse().find(node => node.type === 'circle');
+                if (!lastCircleNode) return nodes;  // 如果没找到，返回原始数组
+                const width = keywords.length * 6;
+                // 更新找到的节点的数据
+                return nodes.map(node => 
+                    node.id === lastCircleNode.id
+                        ? { ...node, data: { ...node.data, keywords: keywords },
+                        style: {
+                            ...node.style,
+                            width: `${width}px`
+                        } 
+                    }
+                        : node
+                );
+            }
+        );
+    }
+    const handleSimilarityUpdate = (similarityData: Array<{index: number, similarity: number}>) => {
+        console.log('Similarity data:', similarityData);
+        // 这里可以用这些索引来更新节点状态
+        // 例如：高亮显示相似的节点
+        setNodes(nodes => nodes.map(node =>{
+            // 只更新 type 为 'question' 的节点
+            if (node.type === 'editable') {
+                // 检查这个节点是否是相似度最高的两个节点之一
+                const matchingData = similarityData.find(data => data.index === Number(node.id));
+                if (matchingData) {
+                    // 使用 rgba 模型，根据相似度设置透明度
+                    const opacity = Math.pow(matchingData.similarity, 2);  // 使用平方来增加差异
+                    return {
+                        ...node,
+                        style: {
+                            ...node.style,
+                            backgroundColor: `rgba(255, 255, ${(1-opacity)*255}, 1)`  // 黄色，透明度根据相似度变化
+                        }
+                    };
+                } else {
+                    // 不是相似度最高的两个节点，设置为白色
+                    return {
+                        ...node,
+                        style: {
+                            ...node.style,
+                            backgroundColor: 'white'
+                        }
+                    };
+                }
+            }
+            // 其他类型的节点保持不变
+            return node;
+        } ));
+    };
     return (
         <div style={{ height: '95vh', width: '100vw' }}>
             <button style={{ position: 'absolute', left: '3vw', top: '1vw', zIndex: 2 }} onClick={() => setShowModal(true)}>Upload script</button>
@@ -223,7 +381,6 @@ function App() {
                     </div>
                 </div>
             )}
-            {/* <button style={{position:'absolute',left:'10vw',top:'1vw',zIndex:2}} onClick={handleAddQuestion}>Add question</button> */}
             <ReactFlowProvider>
                 <ReactFlow
                     nodes={nodes}
@@ -231,13 +388,14 @@ function App() {
                     onNodesChange={onNodesChange}
                     onNodeDragStop={onNodeDragStop}
                     nodeTypes={nodeTypes}
-                    className="react-flow-subflows-example"
+                    // className="react-flow-subflows-example"
+                    // onNodeDrag={onNodeDrag}
                     minZoom={0.2}
                     maxZoom={4}
                     fitView
                 >
                     <MiniMap zoomable pannable nodeClassName={'intersection-flow'} />
-                    <RealTimeTranscription ref={realTimeTranscriptionRef} onNodeCreate={handleNodeCreate} />
+                    <RealTimeTranscription ref={realTimeTranscriptionRef} onNodeCreate={handleNodeCreate} firstNodeId={firstNodeId} onNodeUpdate={handleAnswerNodeUpdate} onSimilarityUpdate={handleSimilarityUpdate}/>
                     <Background />
                     <Controls />
                 </ReactFlow>

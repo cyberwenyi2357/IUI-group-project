@@ -3,9 +3,12 @@ import { Handle, useStore, Position } from '@xyflow/react';
 
 interface NodeProps {
     id: string;
+    data: {
+        keywords?: string;
+    }
 }
 
-const NodeComponent: React.FC<NodeProps> = ({ id }) => {
+const NodeComponent: React.FC<NodeProps> = ({ id ,data}) => {
     const label = useStore((s) => {
         const node = s.nodeLookup.get(id);
 
@@ -18,7 +21,7 @@ const NodeComponent: React.FC<NodeProps> = ({ id }) => {
     return (
         <>
             <div  className="wrapper gradient">
-                <div className="inner">{label || '  '}</div>
+                <div className="inner">{data.keywords}</div>
             </div>
         </>
     );

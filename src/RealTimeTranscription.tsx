@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useImperativeHandle, forwardRef, useRef } from 'react';
 import './index.css'
+import { extractKeywords, getEmbedding } from './openaiUtils';
 import {
     ReactFlow,
     Background,
@@ -14,18 +15,18 @@ import {
 import { openai } from './openai';
 interface Props {
     onNodeCreate: (newNode: Node) => void;
+    firstNodeId: string | null;
+    onNodeUpdate: (keywords:string) => void;
+    onSimilarityUpdate: (data: Array<{index: number, similarity: number}>) => void;
 }
 const RealTimeTranscription = forwardRef((props:Props, ref) => {
-    const { onNodeCreate } = props;
+    const { onNodeCreate, firstNodeId,onNodeUpdate } = props;
     const [transcription, setTranscription] = useState('');
     const [isRecording, setIsRecording] = useState(false);
     const containerRef = useRef(null);
     const wsRef=useRef<WebSocket|null>(null);
     const [keywords,setKeywords]=useState<string>('no keywords now');
-    const lastProcessedRef = useRef<number>(0);
-    const [recent,setRecent]=useState<string>('');
-    const [recentCount, setRecentCount] = useState<number>(0);
-
+    const [nodeCounter, setNodeCounter] = useState(1);
     useEffect(() => {
         // 建立 WebSocket 连接
         wsRef.current= new WebSocket('ws://localhost:8080');
@@ -38,19 +39,12 @@ const RealTimeTranscription = forwardRef((props:Props, ref) => {
         };
         wsRef.current.onmessage = (event) => {
             setTranscription((prev) => prev + event.data + '\n');
-            console.log('instant data',`${event.data}`);
-            //TODO: investigate why count keeps on being 0
-            console.log('transcription',transcription);
-
-                extractKeywords(`${event.data}`);
-                // lastProcessedRef.current=recent.count;
         };
+
         return () => {
-        
             if(wsRef.current && wsRef.current.readyState===1){
                 wsRef.current.close();
             }
-            
         };
     }, []);  
     useEffect(()=>{
@@ -58,62 +52,65 @@ const RealTimeTranscription = forwardRef((props:Props, ref) => {
             if(isRecording){
             wsRef.current.send('start');
         }}
-        
     },[isRecording])
     useImperativeHandle(ref, () => ({
         getTranscriptionContent: () => transcription,
     }));
 
+
     const handleClick = () => {
         setIsRecording(!isRecording);
-        if (!isRecording) { // 当开始录音时创建节点
+        if (!isRecording && firstNodeId) { // 当开始录音时创建circleNode
             const newNode:Node = {
-                id: `circle-${Date.now()}`,
+                id: `circle-${nodeCounter}`,
                 type: 'circle',
-                data: { label: 'New Recording' },
+                data: { keywords: keywords },
                 position: { x: 100, y: 100 },
-               
+               parentId:firstNodeId
             };
             onNodeCreate(newNode);
+            setNodeCounter(prev => prev + 1);
         }
     };
-    const getRecent = (text: string) => {
-        const lines = text.split('\n').filter(line => line.trim() !== '');
-        return {
-            text:lines.slice(-10).join('\n'),
-            count:lines.length
-        }
-        // return lines.join('\n');
-    };
-    const extractKeywords = async (text: string) => {
-        try {
-            const response = await openai.chat.completions.create({
-                model: "gpt-4",
-                messages: [{
-                    role: "system",
-                    content: "You are a keyword extraction expert. Extract the most important keywords from the given text. Return only the keywords as a comma-separated list."
-                }, {
-                    role: "user",
-                    content: text
-                }],
-                temperature: 0.3,
-            });
 
-            const keywordString = response.choices[0].message.content;
-            if (keywordString) {
-                setKeywords(keywordString);
-                console.log(keywordString);
-            }
-        } catch (error) {
-            console.error('Error extracting keywords:', error);
+    
+    useEffect(() => {
+        console.log('transcription updated:', transcription);
+        const words = transcription.trim().split(/\s+/);
+        if (words.length >= 30) {
+            extractKeywords(transcription).then(keyword=>{
+                if(keyword){
+                setKeywords(keyword);
+                onNodeUpdate(keyword);
+                }
+                fetch('http://localhost:8070/embedding', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ text: transcription })
+                }).then(response => response.json())
+                .then(data => {
+                    // 提取索引并传递给父组件
+                    const indices = data.similarities.map((sim: {
+                        index: number,
+                        similarity: number
+                    }) =>  ({
+                        index: sim.index,
+                        similarity: sim.similarity
+                    }));
+                    props.onSimilarityUpdate(indices);
+                })
+                .catch(error => console.error('Error:', error));
+            }); 
+            setTranscription('');  // 重置 transcription
         }
-    };
+    }, [transcription]);
+
     return (
         <div ref={containerRef}>
 
            <div style={{position: 'absolute', left: '5vw', top: '20vw', zIndex: 6}}>
-            {/*{getRecent(transcription).text}*/}
-            {keywords}
             </div>
                 <button style={{position: 'absolute', right: '5vw', top: '1vw', zIndex: 6}} onClick={handleClick}>{isRecording?'Stop':'Start'}</button>
 
