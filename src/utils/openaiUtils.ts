@@ -16,6 +16,7 @@ export const getEmbedding = async (text: string) => {
         return null;
     }
 };
+
 export const extractKeywords = async (text: string) => {
     try {
         const response = await openai.chat.completions.create({
@@ -36,6 +37,7 @@ export const extractKeywords = async (text: string) => {
         console.error('Error extracting keywords:', error);
     }
 };
+
 export const segmentAndSummarize = async (text: string) => {
     try {
         const response = await openai.chat.completions.create({

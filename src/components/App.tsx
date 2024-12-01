@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import RealTimeTranscription from './RealTimeTranscription';
-import './index.css'
-import CircleNode from "./circleNode.tsx";
+import '../style/index.css'
+import CircleNode from "./CircleNode.tsx";
 
 import {
     ReactFlow,
@@ -16,10 +16,14 @@ import {
     type NodeProps
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { openai } from './openai.ts';
-import { extractKeywords } from './openaiUtils.ts';
-import ArrowRectangleNode from './arrowRectangleNode.tsx';
-import ReminderCircleNode from './reminderCircleNode.tsx';
+import { openai } from '../utils/openai.ts';
+import { extractKeywords } from '../utils/openaiUtils.ts';
+import ArrowRectangleNode from './ArrowRectangleNode.tsx';
+import ReminderCircleNode from './ReminderCircleNode.tsx';
+
+import EditableNode from "./EditableNode";
+import GroupNode from "./GroupNode";
+
 
 interface Category {
     category: string;
@@ -30,61 +34,8 @@ interface Result {
     categories: Category[];
 }
 
-
-function EditableNode({ id, data }: NodeProps) {
-    const [label, setLabel] = useState(data.label);
-    const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-    const adjustHeight = () => {
-        const textarea = textareaRef.current;
-        if (textarea) {
-            textarea.style.height = 'auto';
-            textarea.style.height = textarea.scrollHeight + 'px';
-        }
-    };
-
-    useEffect(() => {
-        adjustHeight();
-    }, [label]); // 当 label 改变时重新调整高度
-    const handleChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-        setLabel(event.target.value);
-    };
-    return (
-        <div style={{ padding: 10, border: '1px solid #000', borderRadius: 2 }}>
-            <textarea
-                ref={textareaRef}
-                value={label as string}
-                onChange={handleChange}
-                style={{
-                    width: '100%',
-                    border: 'none',
-                    textAlign: 'center',
-                    resize: 'none',
-                    overflow: 'hidden',
-                    minHeight: '20px',
-                    backgroundColor: 'transparent',
-                    fontFamily: 'inherit',
-                    fontSize: 'inherit',
-                    lineHeight: '1.5',
-                }}
-                rows={1}
-                
-            />
-        </div>
-    );
-}
-function groupNode({ id, data }: NodeProps) {
-    return (
-        <div>{data.label}</div>
-    )
-}
-
-
-
 function App() {
-    const initialNodes: Node[] = [
-       
-    ];
+    const initialNodes: Node[] = [];
     const initialEdges: Edge[] = [];
     const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
     const realTimeTranscriptionRef = useRef(null);
@@ -96,14 +47,15 @@ function App() {
     const newNodes: Node[] = [];
     const [tagNodeCounter, setTagNodeCounter] = useState<number[]>([]);
     let xOffset = 50;
-    let nodeCounter = 0; 
+    let nodeCounter = 0;
     // const { getIntersectingNodes } = useReactFlow();
+
     const nodeTypes = {
         editable: EditableNode,
         circle: (props: NodeProps) => (
             <CircleNode {...props} onClick={handleMarkNodeClick} />
         ),
-        group: groupNode,
+        group: GroupNode,
         arrowRectangle: ArrowRectangleNode,
         reminderCircle: (props: NodeProps) => (
             <ReminderCircleNode {...props} onClick={handleReminderNodeClick} />
@@ -123,6 +75,7 @@ function App() {
             return node;
         }));
     }
+
     useEffect(() => {
         console.log('tagNodeCounter updated:', tagNodeCounter);
         fetch('http://localhost:8070/handle-answer-click', {
@@ -152,6 +105,7 @@ function App() {
             });
         });
     }, [tagNodeCounter]);
+
     const handleMarkNodeClick = useCallback(async (nodeId: string) => {
         console.log('clicked circle node',nodeId);
         const clickedNode = nodes.find(node => node.id === nodeId);

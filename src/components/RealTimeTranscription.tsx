@@ -1,15 +1,8 @@
-import React, { useState, useEffect, useImperativeHandle, forwardRef, useRef } from 'react';
-import './index.css'
+import { useState, useEffect, useImperativeHandle, forwardRef, useRef } from 'react';
+import '../style/index.css'
+
 import {
-    ReactFlow,
-    Background,
-    Controls,
-    ReactFlowProvider,
-    useNodesState,
-    MiniMap,
-    type Edge,
     type Node,  // <- 这里导入了 Node 类型
-    type NodeProps
 } from '@xyflow/react';
 
 interface Props {
@@ -19,6 +12,7 @@ interface Props {
     
     onSimilarityUpdate: (data: Array<{index: number, similarity: number}>) => void;
 }
+
 const RealTimeTranscription = forwardRef((props:Props, ref) => {
     const { onNodeCreate, firstNodeId } = props;
     const [transcriptionForTopic, setTranscriptionForTopic] = useState('');
@@ -47,7 +41,8 @@ const RealTimeTranscription = forwardRef((props:Props, ref) => {
                 wsRef.current.close();
             }
         };
-    }, []);  
+    }, []);
+
     useEffect(()=>{
         let intervalId: NodeJS.Timeout;
         if(wsRef.current){
@@ -68,7 +63,6 @@ const RealTimeTranscription = forwardRef((props:Props, ref) => {
     useImperativeHandle(ref, () => ({
         getTranscriptionContent: () => transcriptionForTopic,
     }));
-
 
     const handleClick = () => {
         setIsRecording((prev) => !prev);

@@ -4,7 +4,7 @@ import recorder  from 'node-record-lpcm16';
 import { AssemblyAI } from 'assemblyai';
 import express from 'express';
 import cors from 'cors';
-import { openai } from './src/openai';
+import { openai } from './src/utils/openai';
 const app = express();
 const PORT = 8070;
 let storedEmbeddings: { text: string, embedding: number[] }[] = [];

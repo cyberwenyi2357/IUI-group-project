@@ -1,6 +1,6 @@
 import React from 'react';
 import { Handle,Position } from '@xyflow/react';
-import './arrowRectangleNode.css'; // 用于样式
+import '../style/arrowRectangleNode.css'; // 用于样式
 
 const ArrowRectangleNode = ({ data }) => {
   return (
