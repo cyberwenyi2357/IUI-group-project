@@ -45,7 +45,9 @@ function App() {
     const [questionScript,setQuestionScript]=useState<Result | null>(null);
     const [firstNodeId, setFirstNodeId] = useState<string | null>(null);
     const newNodes: Node[] = [];
+
     const [tagNodeCounter, setTagNodeCounter] = useState<number[]>([]);
+
     let xOffset = 50;
     let nodeCounter = 0;
     // const { getIntersectingNodes } = useReactFlow();
@@ -87,21 +89,22 @@ function App() {
         .then(data => {
             console.log('received segments from backend:', data);
             setNodes((prevNodes) => {
-                const mostSimilarNode = prevNodes.find(node => 
-                    node.type === 'editable' && 
-                    node.style?.backgroundColor && 
+                const mostSimilarNode = prevNodes.find(node =>
+                    node.type === 'editable' &&
+                    node.style?.backgroundColor &&
                     node.style.backgroundColor !== 'white'
                 );
                 if (!mostSimilarNode) return prevNodes;
-                const currentCount=tagNodeCounter[Number(mostSimilarNode.id)] || 0;
-                const newNode={
+
+                const currentCount = tagNodeCounter[Number(mostSimilarNode.id)] || 0;
+                const newNode= {
                     id:Date.now().toString(),
                     type:'arrowRectangle',
                     data:{label:data.text},
                     position:{x:mostSimilarNode.position.x+currentCount*80,y:mostSimilarNode.position.y+50},
                     parentId:mostSimilarNode.id
                 };
-                return [...prevNodes,newNode];
+                return [...prevNodes, newNode];
             });
         });
     }, [tagNodeCounter]);
@@ -109,36 +112,31 @@ function App() {
     const handleMarkNodeClick = useCallback(async (nodeId: string) => {
         console.log('clicked circle node',nodeId);
         const clickedNode = nodes.find(node => node.id === nodeId);
-        if (!clickedNode || clickedNode.type !== 'circle') return nodes;
-        const mostSimilarNode = nodes.find(node => 
+        if (!clickedNode || clickedNode.type !== 'circle')
+            return ;
+
+        // TODO: 2. once you recorded the highlighted node as status, no need to find it everytime.
+        const mostSimilarNode = nodes.find(node =>
             node.type === 'editable' && 
             node.style?.backgroundColor && 
             node.style.backgroundColor !== 'white'
         );
-        console.log('Current nodes:', nodes.map(node => ({
-            id: node.id,
-        })));
-        
-        if (!mostSimilarNode){ console.log('no most similar node'); 
-            return nodes;} 
-        const currentCount=tagNodeCounter[Number(mostSimilarNode.id)] || 0;
-        tagNodeCounter.forEach((count, index) => {
-            if (count !== undefined) {
-                console.log(`Index: ${index}, Count: ${count}`);
-            }
-        });
-        console.log('currentCount',currentCount);
+        if (!mostSimilarNode){
+            console.log('no most similar node');
+            return nodes;
+        }
+
+        // TODO: 3. once you recorded the tag nodes counter inside the highlighted node, we can remove the tagNodeCounter status, and avoid the useEffect() then.
         setTagNodeCounter(prev =>{
             prev[Number(mostSimilarNode.id)] = (prev[Number(mostSimilarNode.id)])? 
-            prev[Number(mostSimilarNode.id)]+1: 1;
+            prev[Number(mostSimilarNode.id)] + 1 : 1;
             return prev;
         });
-            // Your commented code can go here if needed
-        
     }, []);
-           const handleReminderNodeClick = useCallback(async (nodeId: string) => {
 
-           },[]);
+    const handleReminderNodeClick = useCallback(async (nodeId: string) => {
+
+    },[]);
             // 存储其他segments到数组中
             // const previousSegments = segments.slice(0, -1).map((seg: { text: string }) => seg.text);
             // console.log('Previous segments:', previousSegments);
@@ -148,9 +146,11 @@ function App() {
             nds.map((n) => (n.id === node.id ? { ...n, position: node.position } : n))
         );
     }, [setNodes]);
+
     const handleNodeCreate = (newNode: Node) => {
         setNodes((nodes) => [...nodes, newNode]);
     };
+
     const createGroupNode = (category: string, questionsLength: number, currentCounter: number, xPos: number): Node => {
         const groupHeight = questionsLength * 100 + 40;
         return {
@@ -166,6 +166,7 @@ function App() {
             }
         };
     };
+
     const createQuestionNode = (question: string, currentCounter: number, parentId: string, questionCounter: number): Node => {
         const width = Math.min(question.length * 9, 340); // minimum width of 100px
         return {
@@ -217,7 +218,7 @@ function App() {
             const result = JSON.parse(response.choices[0].message.content || "{}");
             console.log('Parsed categories:', result);
             setQuestionScript(result);
-            
+
             result.categories.forEach((category: any) => {
                 let questionCounterForEachGroup=0;
                 const groupNode = createGroupNode(
@@ -256,6 +257,7 @@ function App() {
             setShowModal(false);
             setScriptText('');
         };
+
         fetch('http://localhost:8070/initial-embedding-for-questions', {
             method: 'POST',
             headers: {
@@ -271,6 +273,7 @@ function App() {
             console.error('Error sending texts for embedding:', error);
         });
     }
+
     const handleAnswerNodeUpdate = (keywords:string) => {
         setNodes((nodes) =>
             {
@@ -292,9 +295,13 @@ function App() {
             }
         );
     }
+
     const handleSimilarityUpdate = (similarityData: Array<{index: number, similarity: number}>) => {
         setSimilarityIndex(similarityData[0].index);
         console.log('similarityIndex updated',similarityIndex);
+
+        // TODO: 1. record the highlighted node here in this function, record the number of tageNodes inside the highlighted node.
+
         // 这里可以用这些索引来更新节点状态
         // 例如：高亮显示相似的节点
         setNodes(nodes => nodes.map(node =>{
@@ -326,6 +333,7 @@ function App() {
             return node;
         } ));
     };
+
     return (
         <div style={{ height: '95vh', width: '100vw' }}>
             <button style={{ position: 'absolute', left: '3vw', top: '1vw', zIndex: 2 }} onClick={() => setShowModal(true)}>Upload script</button>
