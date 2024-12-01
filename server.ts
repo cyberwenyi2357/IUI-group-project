@@ -8,6 +8,7 @@ import { openai } from './src/openai';
 const app = express();
 const PORT = 8070;
 let storedEmbeddings: { text: string, embedding: number[] }[] = [];
+let transcriptionForMarking: string = '';
 app.use(cors());
 app.use(express.json());
 function cosineSimilarity(a: number[], b: number[]): number {
@@ -59,7 +60,7 @@ app.post('/embedding', async (req, res) => {
             index: index         
         }))
         .sort((a, b) => b.similarity - a.similarity)
-        .slice(0, 2);  // 只返回最相似的前三个
+        .slice(0, 1);  // 只返回最相似的一个
         res.json({ 
             similarities: similarities
         });
@@ -68,6 +69,29 @@ app.post('/embedding', async (req, res) => {
         console.error('Error generating embedding:', error);
         res.status(500).json({ error: 'Failed to generate embedding' });
     }
+});
+app.get('/handle-answer-click', async (req, res) => {
+
+        const response = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: [{
+                role: "system",
+                content: "Segment the given transcription into meaningful parts, and summarize the last segment in a word or two. Return in the following JSON format: { \"text\": \"segment\"}. No other words."
+            }, {
+                role: "user",
+                content: transcriptionForMarking
+            }],
+            temperature: 0.3,
+            response_format: { type: "json_object" }
+        });
+        if (response.choices[0].message.content) {
+            const segments = JSON.parse(response.choices[0].message.content);
+            console.log('Segments:', segments);
+            // 清空 transcriptionForMarking 为下一次记录做准备
+            transcriptionForMarking = '';
+            res.json(segments);
+        }
+
 });
 
 // 启动 HTTP 服务器
@@ -102,6 +126,8 @@ wss.on('connection', (ws:WebSocket) => {
     transcriber.on('transcript', (transcript: { text: string; message_type: string }) => {
         if (transcript.text && transcript.message_type === 'FinalTranscript') {
             ws.send(transcript.text);
+            transcriptionForMarking += transcript.text;
+            console.log('transcriptionForMarking',transcriptionForMarking);
         }
     });
 

@@ -36,3 +36,20 @@ export const extractKeywords = async (text: string) => {
         console.error('Error extracting keywords:', error);
     }
 };
+export const segmentAndSummarize = async (text: string) => {
+    try {
+        const response = await openai.chat.completions.create({
+            model: "gpt-4",
+            messages: [{
+                role: "system",
+                content: "Segment the given transcription, and give me the last segment."
+            }, {
+                role: "user",
+                content: text
+            }],
+        });
+        return response.choices[0].message.content;
+    } catch (error) {
+        console.error('Error segmenting transcription:', error);
+    }
+}

@@ -1,0 +1,26 @@
+/* ArrowRectangleNode.css */
+.arrow-rectangle-node {
+    display: flex;
+    align-items: center;
+    position: relative;
+  }
+  
+  .arrow {
+    width: 0;
+    height: 0;
+    border-top: 22px solid transparent;
+    border-bottom: 22px solid transparent;
+    border-right: 18px solid #007bff;
+  }
+  
+  .rectangle {
+    background-color: #007bff;
+    color: white;
+    padding: 5px;
+    border-radius: 4px;
+    font-size: 10px;
+    margin-left: -1px; /* 让箭头和矩形贴合 */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }

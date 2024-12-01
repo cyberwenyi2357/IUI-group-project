@@ -6,9 +6,10 @@ interface NodeProps {
     data: {
         keywords?: string;
     }
+    onClick?: (nodeId: string) => void;
 }
 
-const NodeComponent: React.FC<NodeProps> = ({ id ,data}) => {
+const NodeComponent: React.FC<NodeProps> = ({ id ,data,onClick}) => {
     const label = useStore((s) => {
         const node = s.nodeLookup.get(id);
 
@@ -17,10 +18,12 @@ const NodeComponent: React.FC<NodeProps> = ({ id ,data}) => {
         }
 
     });
-
+    const handleClick = () => {
+        onClick?.(id);  // 调用父组件传递的处理函数
+    };
     return (
         <>
-            <div  className="wrapper gradient">
+            <div  className="wrapper gradient" onClick={handleClick} style={{ cursor: 'pointer' }}>
                 <div className="inner">{data.keywords}</div>
             </div>
         </>

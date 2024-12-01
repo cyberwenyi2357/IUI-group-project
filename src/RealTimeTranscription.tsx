@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useImperativeHandle, forwardRef, useRef } from 'react';
 import './index.css'
-import { extractKeywords, getEmbedding } from './openaiUtils';
 import {
     ReactFlow,
     Background,
@@ -12,33 +11,35 @@ import {
     type Node,  // <- 这里导入了 Node 类型
     type NodeProps
 } from '@xyflow/react';
-import { openai } from './openai';
+
 interface Props {
     onNodeCreate: (newNode: Node) => void;
     firstNodeId: string | null;
-    onNodeUpdate: (keywords:string) => void;
+    onFirstNodeUpdate: () => void;
+    
     onSimilarityUpdate: (data: Array<{index: number, similarity: number}>) => void;
 }
 const RealTimeTranscription = forwardRef((props:Props, ref) => {
-    const { onNodeCreate, firstNodeId,onNodeUpdate } = props;
-    const [transcription, setTranscription] = useState('');
+    const { onNodeCreate, firstNodeId } = props;
+    const [transcriptionForTopic, setTranscriptionForTopic] = useState('');
+    const [transcriptionForSegment, setTranscriptionForSegment] = useState('');
     const [isRecording, setIsRecording] = useState(false);
     const containerRef = useRef(null);
     const wsRef=useRef<WebSocket|null>(null);
-    const [keywords,setKeywords]=useState<string>('no keywords now');
+    const [borderColor, setBorderColor] = useState("transparent"); 
     const [nodeCounter, setNodeCounter] = useState(1);
     useEffect(() => {
         // 建立 WebSocket 连接
         wsRef.current= new WebSocket('ws://localhost:8080');
         wsRef.current.onopen = () => {
             console.log('WebSocket connected');
- 
         };
         wsRef.current.onerror = (error) => {
             console.error('WebSocket error:', error);
         };
         wsRef.current.onmessage = (event) => {
-            setTranscription((prev) => prev + event.data + '\n');
+            setTranscriptionForTopic((prev) => prev + event.data + '\n');
+            setTranscriptionForSegment((prev) => prev + event.data + '\n');
         };
 
         return () => {
@@ -48,71 +49,93 @@ const RealTimeTranscription = forwardRef((props:Props, ref) => {
         };
     }, []);  
     useEffect(()=>{
+        let intervalId: NodeJS.Timeout;
         if(wsRef.current){
             if(isRecording){
             wsRef.current.send('start');
         }}
+        if(isRecording){
+            let toggle = true;
+            intervalId = setInterval(() => {
+                setBorderColor(toggle ? "#F08080" : "transparent"); // 橙红色和蓝色之间切换
+                toggle = !toggle;
+              }, 800); // 每 500 毫秒切换一次颜色
+        }
+        return () => {
+            clearInterval(intervalId);
+          };
     },[isRecording])
     useImperativeHandle(ref, () => ({
-        getTranscriptionContent: () => transcription,
+        getTranscriptionContent: () => transcriptionForTopic,
     }));
 
 
     const handleClick = () => {
-        setIsRecording(!isRecording);
-        if (!isRecording && firstNodeId) { // 当开始录音时创建circleNode
-            const newNode:Node = {
+        setIsRecording((prev) => !prev);
+        if (!isRecording && firstNodeId) {
+            props.onFirstNodeUpdate();
+            const markNode:Node = {
                 id: `circle-${nodeCounter}`,
                 type: 'circle',
-                data: { keywords: keywords },
-                position: { x: 100, y: 100 },
+                data: { keywords: 'Mark' },
+                position: { x: 230, y: 40 },
                parentId:firstNodeId
             };
-            onNodeCreate(newNode);
+            const reminderNode: Node = {
+                id: `reminder-${nodeCounter}`,
+                type: 'reminderCircle',
+                data: { keywords: 'Missed?' },
+                position: { x: 300, y: 40 }, // Positioned below the circle node
+                parentId: firstNodeId
+            };
+            onNodeCreate(markNode);
+            onNodeCreate(reminderNode);
             setNodeCounter(prev => prev + 1);
         }
     };
 
-    
+    //实时检测topic
     useEffect(() => {
-        console.log('transcription updated:', transcription);
-        const words = transcription.trim().split(/\s+/);
-        if (words.length >= 30) {
-            extractKeywords(transcription).then(keyword=>{
-                if(keyword){
-                setKeywords(keyword);
-                onNodeUpdate(keyword);
-                }
-                fetch('http://localhost:8070/embedding', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ text: transcription })
-                }).then(response => response.json())
-                .then(data => {
-                    // 提取索引并传递给父组件
-                    const indices = data.similarities.map((sim: {
-                        index: number,
-                        similarity: number
-                    }) =>  ({
-                        index: sim.index,
-                        similarity: sim.similarity
-                    }));
-                    props.onSimilarityUpdate(indices);
-                })
-                .catch(error => console.error('Error:', error));
-            }); 
-            setTranscription('');  // 重置 transcription
+        console.log('transcription updated:', transcriptionForTopic);
+        const words = transcriptionForTopic.trim().split(/\s+/);
+        if (words.length >= 25) {
+            fetch('http://localhost:8070/embedding', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ text: transcriptionForTopic })
+            }).then(response => response.json())
+            .then(data => {
+                // 提取索引并传递给父组件
+                const indices = data.similarities.map((sim: {
+                    index: number,
+                    similarity: number
+                }) =>  ({
+                    index: sim.index,
+                    similarity: sim.similarity
+                }));
+                props.onSimilarityUpdate(indices);
+            })
+            .catch(error => console.error('Error:', error));
+            // extractKeywords(transcription).then(keyword=>{
+            //     if(keyword){
+            //     setKeywords(keyword);
+            //     onNodeUpdate(keyword);
+            //     }
+                
+            // }); 
+            setTranscriptionForTopic('');  // 重置 transcription
         }
-    }, [transcription]);
+    }, [transcriptionForTopic]);
+
 
     return (
         <div ref={containerRef}>
 
            <div style={{position: 'absolute', left: '5vw', top: '20vw', zIndex: 6}}>
             </div>
-                <button style={{position: 'absolute', right: '5vw', top: '1vw', zIndex: 6}} onClick={handleClick}>{isRecording?'Stop':'Start'}</button>
+                <button className={'recording-button'} style={{position: 'absolute', right: '5vw', top: '1vw', zIndex: 6,border: `5px solid ${borderColor}`}}  onClick={handleClick}>{isRecording?'Stop':'Start'}</button>
 
         </div>
     );

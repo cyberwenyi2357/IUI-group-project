@@ -17,7 +17,9 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { openai } from './openai.ts';
-
+import { extractKeywords } from './openaiUtils.ts';
+import ArrowRectangleNode from './arrowRectangleNode.tsx';
+import ReminderCircleNode from './reminderCircleNode.tsx';
 
 interface Category {
     category: string;
@@ -31,14 +33,26 @@ interface Result {
 
 function EditableNode({ id, data }: NodeProps) {
     const [label, setLabel] = useState(data.label);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+    const adjustHeight = () => {
+        const textarea = textareaRef.current;
+        if (textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = textarea.scrollHeight + 'px';
+        }
+    };
+
+    useEffect(() => {
+        adjustHeight();
+    }, [label]); // 当 label 改变时重新调整高度
     const handleChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
         setLabel(event.target.value);
     };
-
     return (
         <div style={{ padding: 10, border: '1px solid #000', borderRadius: 2 }}>
             <textarea
+                ref={textareaRef}
                 value={label as string}
                 onChange={handleChange}
                 style={{
@@ -54,11 +68,7 @@ function EditableNode({ id, data }: NodeProps) {
                     lineHeight: '1.5',
                 }}
                 rows={1}
-                onInput={(e) => {
-                    const target = e.target as HTMLTextAreaElement;
-                    target.style.height = 'auto';
-                    target.style.height = target.scrollHeight + 'px';
-                }}
+                
             />
         </div>
     );
@@ -69,89 +79,126 @@ function groupNode({ id, data }: NodeProps) {
     )
 }
 
-const nodeTypes = {
-    editable: EditableNode,
-    circle: CircleNode,
-    group: groupNode,
-};
+
 
 function App() {
     const initialNodes: Node[] = [
-
+       
     ];
     const initialEdges: Edge[] = [];
     const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
     const realTimeTranscriptionRef = useRef(null);
     const [showModal, setShowModal] = useState(false);
     const [scriptText, setScriptText] = useState('');
+    const [similarityIndex, setSimilarityIndex] = useState(0);
     const [questionScript,setQuestionScript]=useState<Result | null>(null);
     const [firstNodeId, setFirstNodeId] = useState<string | null>(null);
     const newNodes: Node[] = [];
+    const [tagNodeCounter, setTagNodeCounter] = useState<number[]>([]);
     let xOffset = 50;
     let nodeCounter = 0; 
     // const { getIntersectingNodes } = useReactFlow();
+    const nodeTypes = {
+        editable: EditableNode,
+        circle: (props: NodeProps) => (
+            <CircleNode {...props} onClick={handleMarkNodeClick} />
+        ),
+        group: groupNode,
+        arrowRectangle: ArrowRectangleNode,
+        reminderCircle: (props: NodeProps) => (
+            <ReminderCircleNode {...props} onClick={handleReminderNodeClick} />
+        ),
+    };
+    const handleFirstNodeUpdate = () => {
+        setNodes((nodes) => nodes.map(node => {
+            if (node.id === "0") {
+                return {
+                    ...node,
+                    style: {
+                        ...node.style,
+                        backgroundColor: 'rgb(255, 255, 30)'
+                    }
+                };
+            }
+            return node;
+        }));
+    }
+    useEffect(() => {
+        console.log('tagNodeCounter updated:', tagNodeCounter);
+        fetch('http://localhost:8070/handle-answer-click', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        }).then(response => response.json())
+        .then(data => {
+            console.log('received segments from backend:', data);
+            setNodes((prevNodes) => {
+                const mostSimilarNode = prevNodes.find(node => 
+                    node.type === 'editable' && 
+                    node.style?.backgroundColor && 
+                    node.style.backgroundColor !== 'white'
+                );
+                if (!mostSimilarNode) return prevNodes;
+                const currentCount=tagNodeCounter[Number(mostSimilarNode.id)] || 0;
+                const newNode={
+                    id:Date.now().toString(),
+                    type:'arrowRectangle',
+                    data:{label:data.text},
+                    position:{x:mostSimilarNode.position.x+currentCount*80,y:mostSimilarNode.position.y+50},
+                    parentId:mostSimilarNode.id
+                };
+                return [...prevNodes,newNode];
+            });
+        });
+    }, [tagNodeCounter]);
+    const handleMarkNodeClick = useCallback(async (nodeId: string) => {
+        console.log('clicked circle node',nodeId);
+        const clickedNode = nodes.find(node => node.id === nodeId);
+        if (!clickedNode || clickedNode.type !== 'circle') return nodes;
+        const mostSimilarNode = nodes.find(node => 
+            node.type === 'editable' && 
+            node.style?.backgroundColor && 
+            node.style.backgroundColor !== 'white'
+        );
+        console.log('Current nodes:', nodes.map(node => ({
+            id: node.id,
+        })));
+        
+        if (!mostSimilarNode){ console.log('no most similar node'); 
+            return nodes;} 
+        const currentCount=tagNodeCounter[Number(mostSimilarNode.id)] || 0;
+        tagNodeCounter.forEach((count, index) => {
+            if (count !== undefined) {
+                console.log(`Index: ${index}, Count: ${count}`);
+            }
+        });
+        console.log('currentCount',currentCount);
+        setTagNodeCounter(prev =>{
+            prev[Number(mostSimilarNode.id)] = (prev[Number(mostSimilarNode.id)])? 
+            prev[Number(mostSimilarNode.id)]+1: 1;
+            return prev;
+        });
+            // Your commented code can go here if needed
+        
+    }, []);
+           const handleReminderNodeClick = useCallback(async (nodeId: string) => {
+
+           },[]);
+            // 存储其他segments到数组中
+            // const previousSegments = segments.slice(0, -1).map((seg: { text: string }) => seg.text);
+            // console.log('Previous segments:', previousSegments);
+
     const onNodeDragStop = useCallback((_, node) => {
         setNodes((nds) =>
             nds.map((n) => (n.id === node.id ? { ...n, position: node.position } : n))
         );
     }, [setNodes]);
-    // const onNodeDragStop = useCallback((_, draggedNode) => {
-    //     setNodes((nodes) => {
-    //         // 首先更新被拖拽节点的位置
-    //         const updatedNodes = nodes.map(node => 
-    //             node.id === draggedNode.id 
-    //                 ? { ...node, position: draggedNode.position }
-    //                 : node
-    //         );
-            
-    //         // 然后使用 updateNodePositions 调整所有节点的位置
-    //         return updateNodePositions(updatedNodes);
-    //     });
-    // }, [setNodes, updateNodePositions]); 
-    // const onNodeDrag = useCallback((_, draggedNode: Node) => {
-    //     setNodes((nodes) => {
-    //         const updatedNodes = [...nodes];
-    //         // 获取与拖动节点相交的所有节点
-    //         const intersectingNodes = getIntersectingNodes(draggedNode).filter(
-    //             node => (node.type === 'editable' || node.type === 'circle') && node.id !== draggedNode.id
-    //         );
-            
-    //         // 如果有相交的节点，计算并应用推力
-    //         intersectingNodes.forEach(node => {
-    //             // 计算推力
-    //             const dx = node.position.x - draggedNode.position.x;
-    //             const dy = node.position.y - draggedNode.position.y;
-    //             const distance = Math.sqrt(dx * dx + dy * dy);
-                
-    //             // 设置最小距离和推力强度
-    //             const minDistance = 100;
-    //             const repulsionStrength = 20;
-                
-    //             if (distance < minDistance) {
-    //                 const force = (minDistance - distance) / minDistance * repulsionStrength;
-    //                 const nodeIndex = updatedNodes.findIndex(n => n.id === node.id);
-                    
-    //                 if (nodeIndex !== -1) {
-    //                     const newPosition = {
-    //                         x: node.position.x + (dx / distance) * force,
-    //                         y: node.position.y + (dy / distance) * force
-    //                     };
-    //                     updatedNodes[nodeIndex] = {
-    //                         ...node,
-    //                         position: newPosition
-    //                     };
-    //                 }
-    //             }
-                
-    //         });
-    //         return updatedNodes;
-    //     }, [setNodes,getIntersectingNodes]);
-    // }
     const handleNodeCreate = (newNode: Node) => {
         setNodes((nodes) => [...nodes, newNode]);
     };
     const createGroupNode = (category: string, questionsLength: number, currentCounter: number, xPos: number): Node => {
-        const groupHeight = questionsLength * 60 + 40;
+        const groupHeight = questionsLength * 100 + 40;
         return {
             id: `Group-${currentCounter}`,
             type: 'group',
@@ -159,19 +206,19 @@ function App() {
             position: { x: xPos, y: 100 },
             style: {
                 backgroundColor: 'rgba(192, 192, 192, 0.5)',
-                width: 300,
+                width: 370,
                 height: groupHeight,
                 padding: '20px'
             }
         };
     };
     const createQuestionNode = (question: string, currentCounter: number, parentId: string, questionCounter: number): Node => {
-        const width = Math.max(question.length * 8, 80); // minimum width of 100px
+        const width = Math.min(question.length * 9, 340); // minimum width of 100px
         return {
             id: `${currentCounter}`,
             type: 'editable',
             data: { label: question },
-            position: { x: 20, y: questionCounter * 70 + 50 },
+            position: { x: 20, y: questionCounter * 95 + 50 },
             parentId: parentId,
             extent: 'parent',
             draggable: true,
@@ -180,6 +227,7 @@ function App() {
                 overflow: 'visible',
                 whiteSpace: 'pre-wrap', 
                 height: 'auto',  
+                width: width,
             }
         };
     };
@@ -291,13 +339,13 @@ function App() {
         );
     }
     const handleSimilarityUpdate = (similarityData: Array<{index: number, similarity: number}>) => {
-        console.log('Similarity data:', similarityData);
+        setSimilarityIndex(similarityData[0].index);
+        console.log('similarityIndex updated',similarityIndex);
         // 这里可以用这些索引来更新节点状态
         // 例如：高亮显示相似的节点
         setNodes(nodes => nodes.map(node =>{
             // 只更新 type 为 'question' 的节点
             if (node.type === 'editable') {
-                // 检查这个节点是否是相似度最高的两个节点之一
                 const matchingData = similarityData.find(data => data.index === Number(node.id));
                 if (matchingData) {
                     // 使用 rgba 模型，根据相似度设置透明度
@@ -395,7 +443,7 @@ function App() {
                     fitView
                 >
                     <MiniMap zoomable pannable nodeClassName={'intersection-flow'} />
-                    <RealTimeTranscription ref={realTimeTranscriptionRef} onNodeCreate={handleNodeCreate} firstNodeId={firstNodeId} onNodeUpdate={handleAnswerNodeUpdate} onSimilarityUpdate={handleSimilarityUpdate}/>
+                    <RealTimeTranscription ref={realTimeTranscriptionRef} onNodeCreate={handleNodeCreate} firstNodeId={firstNodeId}  onSimilarityUpdate={handleSimilarityUpdate} onFirstNodeUpdate={handleFirstNodeUpdate}/>
                     <Background />
                     <Controls />
                 </ReactFlow>
