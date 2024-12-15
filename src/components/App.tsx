@@ -42,12 +42,14 @@ function App() {
     const [showModal, setShowModal] = useState(false);
     const [scriptText, setScriptText] = useState('');
     const [similarityIndex, setSimilarityIndex] = useState(0);
+    const simIndexRef = useRef(similarityIndex);
     const [questionScript,setQuestionScript]=useState<Result | null>(null);
     const [firstNodeId, setFirstNodeId] = useState<string | null>(null);
     const newNodes: Node[] = [];
-
+    const [currentParentId, setCurrentParentId] = useState<string>('Group-0');
     const [tagNodeCounter, setTagNodeCounter] = useState<number[]>([]);
-
+    // 在App组件的开头添加新的状态
+    const [storedSegmentNodes, setStoredSegmentNodes] = useState<Node[]>([]);
     let xOffset = 50;
     let nodeCounter = 0;
     // const { getIntersectingNodes } = useReactFlow();
@@ -58,90 +60,189 @@ function App() {
             <CircleNode {...props} onClick={handleMarkNodeClick} />
         ),
         group: GroupNode,
-        arrowRectangle: ArrowRectangleNode,
+        arrowRectangle: (props: any) => (
+            <ArrowRectangleNode
+              {...props}
+              onClick={handleArrowRectangleNodeClick}
+            />
+        ),
         reminderCircle: (props: NodeProps) => (
             <ReminderCircleNode {...props} onClick={handleReminderNodeClick} />
         ),
     };
     const handleFirstNodeUpdate = () => {
+        setTimeout(() => {
         setNodes((nodes) => nodes.map(node => {
             if (node.id === "0") {
                 return {
                     ...node,
                     style: {
                         ...node.style,
-                        backgroundColor: 'rgb(255, 255, 30)'
+                        backgroundColor: 'rgb(255, 255, 100)'
                     }
                 };
             }
             return node;
         }));
+    },3000);
     }
 
     useEffect(() => {
         console.log('tagNodeCounter updated:', tagNodeCounter);
-        fetch('http://localhost:8070/handle-answer-click', {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-        }).then(response => response.json())
-        .then(data => {
-            console.log('received segments from backend:', data);
+        
+        // 创建 EventSource 连接
+        const eventSource = new EventSource('http://localhost:8070/handle-answer-click');
+    
+        // 处理分段摘要
+        eventSource.addEventListener('segments', (event) => {
+            const segments = JSON.parse(event.data);
+            console.log('received segments from backend:', segments.data);
+
             setNodes((prevNodes) => {
                 const mostSimilarNode = prevNodes.find(node =>
                     node.type === 'editable' &&
                     node.style?.backgroundColor &&
                     node.style.backgroundColor !== 'white'
                 );
-                if (!mostSimilarNode) return prevNodes;
-
+                
+                console.log('mostSimilarNode:', mostSimilarNode);
+                if(!mostSimilarNode) return prevNodes;
+                
                 const currentCount = tagNodeCounter[Number(mostSimilarNode.id)] || 0;
-                const newNode= {
-                    id:Date.now().toString(),
-                    type:'arrowRectangle',
-                    data:{label:data.text},
-                    position:{x:mostSimilarNode.position.x+currentCount*80,y:mostSimilarNode.position.y+50},
-                    parentId:mostSimilarNode.id
+                console.log('currentCount:', currentCount);
+                const newNode = {
+                    id: `${mostSimilarNode.id}-${currentCount}`,
+                    type: 'arrowRectangle',
+                    data: { label: segments.keyword},
+                    position: {
+                        x: mostSimilarNode.position.x + (currentCount-1)*80,
+                        y: mostSimilarNode.position.y + 50
+                    },
+                    parentId: mostSimilarNode.parentId
                 };
                 return [...prevNodes, newNode];
             });
         });
-    }, [tagNodeCounter]);
+    
+        // 处理跟进问题
+        eventSource.addEventListener('followUp', (event) => {
+            const { followUpQuestion } = JSON.parse(event.data);
+            console.log('Received follow-up question:', followUpQuestion);
+            // 在这里处理跟进问题
+            // 比如设置到某个状态中
+            setNodes(prevNodes => {
+                const newNodes = [...prevNodes];
+                const lastNode = newNodes[newNodes.length - 1];
+                if (lastNode) {
+                    lastNode.data = {
+                        ...lastNode.data,
+                        followUp: followUpQuestion
+                    };
+                }
+                console.log('last node:', lastNode);
+                return newNodes;
+            });
+            eventSource.close();
+        });
+    
+        // 错误处理
+        eventSource.addEventListener('error', (event) => {
+            console.error('Error:', event);
+            eventSource.close();
+        });
+    
+        // 清理函数
+        return () => {
+            eventSource.close();
+        };
+        
+    }, [JSON.stringify(tagNodeCounter)]);
 
-    const handleMarkNodeClick = useCallback(async (nodeId: string) => {
+    const handleMarkNodeClick = async (nodeId: string) => {
         console.log('clicked circle node',nodeId);
         const clickedNode = nodes.find(node => node.id === nodeId);
         if (!clickedNode || clickedNode.type !== 'circle')
             return ;
-
         // TODO: 2. once you recorded the highlighted node as status, no need to find it everytime.
-        const mostSimilarNode = nodes.find(node =>
-            node.type === 'editable' && 
-            node.style?.backgroundColor && 
-            node.style.backgroundColor !== 'white'
-        );
-        if (!mostSimilarNode){
-            console.log('no most similar node');
-            return nodes;
-        }
+        
 
         // TODO: 3. once you recorded the tag nodes counter inside the highlighted node, we can remove the tagNodeCounter status, and avoid the useEffect() then.
-        setTagNodeCounter(prev =>{
-            prev[Number(mostSimilarNode.id)] = (prev[Number(mostSimilarNode.id)])? 
-            prev[Number(mostSimilarNode.id)] + 1 : 1;
-            return prev;
+        setTagNodeCounter(prev => {
+            const newCounter = [...prev]; // Create a new array
+            newCounter[Number(simIndexRef.current)] = (prev[Number(simIndexRef.current)] || 0) + 1;
+            return newCounter; 
         });
-    }, []);
-
-    const handleReminderNodeClick = useCallback(async (nodeId: string) => {
-
-    },[]);
+        console.log(JSON.stringify(tagNodeCounter));
+    }
+    const handleArrowRectangleNodeClick = async (followUp: string, event: React.MouseEvent, nodeData: Node) => {
+        console.log('clicked arrow rectangle node', nodeData.id);
+        console.log('clicked arrow rectangle node',followUp);
+        const clickedNode = nodes.find(node => node.id === nodeData.id);
+        if (!clickedNode) return;
+        const newNode: Node = {
+            id: `followup-${Date.now()}`,
+            type: 'default',
+            data: { label: followUp },
+            position: {
+                x: clickedNode.position.x ,
+                y: clickedNode.position.y+30
+            },
+            parentId: clickedNode.parentId, // 保持相同的 parent
+            style: {
+                backgroundColor: 'white',
+                padding: '10px',
+                borderRadius: '5px',
+                border: '1px solid #ccc'
+            },
+            connectable:false
+        };
+        setNodes((nodes) => [...nodes, newNode]);
+    };
+    const handleReminderNodeClick = async (nodeId: string) => {
+        const clickedNode = nodes.find(node => node.id === nodeId);
+        if (!clickedNode || clickedNode.type !== 'reminderCircle') return;
+        // const newNode: Node = {
+        //     id: `reminder-arrow-${Date.now()}`,
+        //     type: 'arrowRectangle',
+        //     data: { label: 'Trending section', color: 'transparent'},
+        //     position: {
+        //         x: clickedNode.position.x,
+        //         y: clickedNode.position.y + 50
+        //     },
+        //     parentId: clickedNode.parentId,
+        //     style: {
+        //         backgroundColor: 'transparent',
+        //         padding: '3px',
+        //         borderRadius: '5px',
+        //         border: '2px solid #ccc'
+        //     }
+        // };
+        // const secondNewNode: Node = {
+        //     id: `reminder-arrow-${Date.now()}`,
+        //     type: 'arrowRectangle',
+        //     data: { label: 'Thumbnail and description', color: 'transparent'},
+        //     position: {
+        //         x: clickedNode.position.x,
+        //         y: clickedNode.position.y + 100
+        //     },
+        //     parentId: clickedNode.parentId,
+        //     style: {
+        //         backgroundColor: 'transparent',
+        //         padding: '2px',
+        //         borderRadius: '5px',
+        //         border: '2px solid #ccc'
+        //     }
+        // }
+        // setNodes((nodes) => [...nodes, newNode, secondNewNode]);
+        if (storedSegmentNodes.length > 0) {
+            setNodes(prevNodes => [...prevNodes, ...storedSegmentNodes]);
+        }
+    }
             // 存储其他segments到数组中
             // const previousSegments = segments.slice(0, -1).map((seg: { text: string }) => seg.text);
             // console.log('Previous segments:', previousSegments);
 
-    const onNodeDragStop = useCallback((_, node) => {
+    const onNodeDragStop = useCallback((_: any, node: any) => {
         setNodes((nds) =>
             nds.map((n) => (n.id === node.id ? { ...n, position: node.position } : n))
         );
@@ -193,7 +294,7 @@ function App() {
             const response = await openai.chat.completions.create({
                 model: "gpt-4o",
                 messages: [{
-                    role: "system", content: `Analyze the given text and extract question categories and specific questions.If you find there are some introduction sentences at the start of each question category, you can add it to the category name.
+                    role: "system", content: `Analyze the given text and extract question categories and specific questions.
             Return the result in the following JSON format:{
                 [
                     {
@@ -233,7 +334,6 @@ function App() {
                     setFirstNodeId(groupNode.id);
                 }
                 category.questions.forEach((question: string) => {
-                    
                     const combinedText = `${category.category}: ${question}`;
                     combinedTexts.push(combinedText);
                     const questionNode = createQuestionNode(
@@ -246,10 +346,10 @@ function App() {
                     nodeCounter++;
                     questionCounterForEachGroup++;
                 });
-                
                 xOffset += 300;
                 setNodes(newNodes);
             });
+
         } catch (error) {
             console.error('Error parsing text with GPT:', error);
             alert('Error processing the text. Please try again.');
@@ -273,36 +373,92 @@ function App() {
             console.error('Error sending texts for embedding:', error);
         });
     }
+    useEffect(() => {
+        simIndexRef.current = similarityIndex;
+        setNodes((prevNodes) => {
+            const mostSimilarNode = prevNodes.find(node => node.id === String(similarityIndex));
+            if (!mostSimilarNode) return prevNodes;
 
-    const handleAnswerNodeUpdate = (keywords:string) => {
-        setNodes((nodes) =>
-            {
-                // 找到最后一个 circle 类型的节点
-                const lastCircleNode = [...nodes].reverse().find(node => node.type === 'circle');
-                if (!lastCircleNode) return nodes;  // 如果没找到，返回原始数组
-                const width = keywords.length * 6;
-                // 更新找到的节点的数据
-                return nodes.map(node => 
-                    node.id === lastCircleNode.id
-                        ? { ...node, data: { ...node.data, keywords: keywords },
-                        style: {
-                            ...node.style,
-                            width: `${width}px`
-                        } 
+            const circleNodes = prevNodes.filter(node => node.type === 'circle'|| node.type === 'reminderCircle');
+            if (circleNodes.length === 0) return prevNodes;
+
+            // 获取所有 circle nodes 的 id
+            const circleNodeIds = new Set(circleNodes.map(node => node.id));
+            console.log('most similar node parentId:', mostSimilarNode.parentId);
+            if (mostSimilarNode.parentId !== currentParentId) {
+                setCurrentParentId(mostSimilarNode.parentId ?? 'Group-0');
+                console.log('stage changed');
+                // Send update to backend only when parentId changes
+                fetch('http://localhost:8070/update-parent', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        parentId: mostSimilarNode.parentId
+                    }),
+                }).then(response => response.json())
+                .then(data => {
+                    if (data.success && data.segments) {
+                        console.log('Received segments:', data.segments);
+                        // Handle the segments data here
+                        const parentNode = nodes.find(node => node.id === mostSimilarNode.parentId);
+                        
+                    //     const newNodes = data.segments.map((segment: { keyword: string }, index: number) => ({
+                    //         id: `segment-${Date.now()}-${index}`,
+                    //         type: 'arrowRectangle',
+                    //         data: { label: segment.keyword, color: '#FFA500' },
+                    //         position: {
+                    //             x: parentNode?.position?.x??0 + (parentNode?.style?.width as number),// Keep x position constant
+                    //             y: parentNode?.position?.y??0 + (index * 50)// Spread nodes vertically, starting 50px below the similar node
+                    //         },
+                    //         parentId: mostSimilarNode.parentId,
+
+                    //     })
+                    // );
+                    const newNodes = data.segments.map((segment: { keyword: string }, index: number) => {
+                        console.log(`Creating node for segment ${index}:`, {
+                            segment: segment,
+                            nodeId: `segment-${Date.now()}-${index}`,
+                            calculatedY: Number(parentNode?.position?.y??0) + (index * 50),
+                            index: index,
+                            offset: index * 50,
+                            position: {
+                                x: parentNode?.position?.x??0 + (parentNode?.style?.width as number),
+                                y: parentNode?.position?.y??0 + (index * 50)
+                            }
+                        });
+                        
+                        return {
+                            id: `segment-${Date.now()}-${index}`,
+                            type: 'arrowRectangle',
+                            data: { label: segment.keyword, color: '#FFA500' },
+                            position: {
+                                x: parentNode?.position?.x??0 + (parentNode?.style?.width as number),
+                                y: Number(parentNode?.position?.y??0) + (index * 50)
+                            },
+                            parentId: mostSimilarNode.parentId,
+                        };
+                    });
+                        setStoredSegmentNodes(newNodes);
                     }
-                        : node
-                );
+                }).catch(error => {
+                    console.error('Error sending parent ID to backend:', error);
+                });
             }
-        );
-    }
-
+    
+            // Update circle nodes parentId
+            return prevNodes.map(node => 
+                circleNodeIds.has(node.id)
+                    ? { ...node, parentId: mostSimilarNode.parentId }
+                    : node
+            );
+        });
+    }, [similarityIndex]);
     const handleSimilarityUpdate = (similarityData: Array<{index: number, similarity: number}>) => {
         setSimilarityIndex(similarityData[0].index);
-        console.log('similarityIndex updated',similarityIndex);
-
         // TODO: 1. record the highlighted node here in this function, record the number of tageNodes inside the highlighted node.
-
-        // 这里可以用这些索引来更新节点状态
+        // 这里可以用这些索引���更新节点状态
         // 例如：高亮显示相似的节点
         setNodes(nodes => nodes.map(node =>{
             // 只更新 type 为 'question' 的节点

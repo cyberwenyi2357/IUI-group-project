@@ -9,7 +9,13 @@ const app = express();
 const PORT = 8070;
 let storedEmbeddings: { text: string, embedding: number[] }[] = [];
 let transcriptionForMarking: string = '';
-app.use(cors());
+let transcriptionForReminder: string = '';
+let currentParentId: string | null = null;
+app.use(cors({
+    origin: 'http://localhost:5173', // 或者你的前端运行的端口
+    methods: ['GET', 'POST'],
+    credentials: true
+}));
 app.use(express.json());
 function cosineSimilarity(a: number[], b: number[]): number {
     const dotProduct = a.reduce((sum, val, i) => sum + val * b[i], 0);
@@ -70,13 +76,47 @@ app.post('/embedding', async (req, res) => {
         res.status(500).json({ error: 'Failed to generate embedding' });
     }
 });
+app.post('/update-parent', async(req, res) => {
+    const { parentId } = req.body;
+    currentParentId = parentId;
+    const reminders = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [{
+            role: "system",
+            content: "Divide the given text into meaningful segments and extract keywords for each segment. " +
+                     "Return in the following JSON format: " +
+                     "{ \"segments\": [{ \"text\": \"segment content\", \"keyword\": \"key phrase\" }] }. " +
+                     "Each keyword should not exceed 2 words."
+        }, {
+            role: "user",
+            content: transcriptionForReminder
+        }],
+        temperature: 0.3,
+        response_format: { type: "json_object" }
+    });
+    
+    const segments = JSON.parse(reminders.choices[0].message.content ?? '{}').segments;
+    
+    res.json({ 
+        success: true, 
+        parentId: currentParentId,
+        segments: segments
+    });
+    transcriptionForMarking = '';
+});
 app.get('/handle-answer-click', async (req, res) => {
+    // 设置 SSE headers
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
 
-        const response = await openai.chat.completions.create({
+    try {
+        // 第一个 API 调用获取分段摘要
+        const segmentResponse = await openai.chat.completions.create({
             model: "gpt-4o",
             messages: [{
                 role: "system",
-                content: "Segment the given transcription into meaningful parts, and summarize the last segment in a word or two. Return in the following JSON format: { \"text\": \"segment\"}. No other words."
+                content: "Segment the given transcription into meaningful parts, and extract the keyword from the last segment. Return in JSON array format with just the keyword (maximum 2 words)."
             }, {
                 role: "user",
                 content: transcriptionForMarking
@@ -84,16 +124,49 @@ app.get('/handle-answer-click', async (req, res) => {
             temperature: 0.3,
             response_format: { type: "json_object" }
         });
-        if (response.choices[0].message.content) {
-            const segments = JSON.parse(response.choices[0].message.content);
-            console.log('Segments:', segments);
-            // 清空 transcriptionForMarking 为下一次记录做准备
-            transcriptionForMarking = '';
-            res.json(segments);
-        }
-
+        // 发送第一个结果
+        const segments = JSON.parse(segmentResponse.choices[0].message.content || '{}');
+        console.log('segments',segments);
+        res.write(`event: segments\ndata: ${JSON.stringify(segments)}\n\n`);
+        // openai.chat.completions.create({
+        //                 model: "gpt-4o",
+        //                 messages: [{
+        //                     role: "system",
+        //                     content: "You are an expert in qualitative research, and you are investigating User's Sense of Agency Over Time and Content Choice on Netflix. You are given a segment of User's transcription, and you need to generate a follow-up question based on the segment."
+        //                 }, {
+        //                     role: "user",
+        //                     content: transcriptionForMarking
+        //                 }],
+        //             }).then(followUpQuestion =>{
+        //                 transcriptionForMarking = '';
+        //                 console.log('followUpQuestion',followUpQuestion);
+        //                 res.write(`event: followUpQuestion\ndata: ${JSON.stringify({ followUpQuestion: followUpQuestion.choices[0].message.content })}\n\n`);
+        //                 res.end();
+        //             })
+        // 第二个 API 调用获取跟进问题
+        const followUpResponse = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: [{
+                role: "system",
+                content: "You are an expert in qualitative research, and you are investigating User's Sense of Agency Over Time and Content Choice on Netflix. You are given a segment of User's transcription, and you need to generate a follow-up question based on the segment.Please just give me a question, no other words "
+            }, {
+                role: "user",
+                content: transcriptionForMarking
+            }],
+        });
+        // 发送第二个结果
+        transcriptionForMarking = '';
+        const followUpQuestion = followUpResponse.choices[0].message.content;
+        res.write(`event: followUp\ndata: ${JSON.stringify({ followUpQuestion })}\n\n`);
+        //清空记录
+        //结束连接
+        res.end();
+    } catch (error) {
+        console.error('Error:', error);
+        res.write(`event: error\ndata: ${JSON.stringify({ error: 'Failed to process request' })}\n\n`);
+        res.end();
+    }
 });
-
 // 启动 HTTP 服务器
 app.listen(PORT, () => {
     console.log(`HTTP server running on http://localhost:${PORT}`);
@@ -127,6 +200,7 @@ wss.on('connection', (ws:WebSocket) => {
         if (transcript.text && transcript.message_type === 'FinalTranscript') {
             ws.send(transcript.text);
             transcriptionForMarking += transcript.text;
+            transcriptionForReminder += transcript.text;
             console.log('transcriptionForMarking',transcriptionForMarking);
         }
     });

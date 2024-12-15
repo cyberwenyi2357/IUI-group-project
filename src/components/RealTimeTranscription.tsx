@@ -72,14 +72,14 @@ const RealTimeTranscription = forwardRef((props:Props, ref) => {
                 id: `circle-${nodeCounter}`,
                 type: 'circle',
                 data: { keywords: 'Mark' },
-                position: { x: 230, y: 40 },
+                position: { x: 230, y: 20 },
                parentId:firstNodeId
             };
             const reminderNode: Node = {
                 id: `reminder-${nodeCounter}`,
                 type: 'reminderCircle',
                 data: { keywords: 'Missed?' },
-                position: { x: 300, y: 40 }, // Positioned below the circle node
+                position: { x: 300, y: 20 }, // Positioned below the circle node
                 parentId: firstNodeId
             };
             onNodeCreate(markNode);
@@ -90,7 +90,6 @@ const RealTimeTranscription = forwardRef((props:Props, ref) => {
 
     //实时检测topic
     useEffect(() => {
-        console.log('transcription updated:', transcriptionForTopic);
         const words = transcriptionForTopic.trim().split(/\s+/);
         if (words.length >= 25) {
             fetch('http://localhost:8070/embedding', {
@@ -119,6 +118,7 @@ const RealTimeTranscription = forwardRef((props:Props, ref) => {
             //     }
                 
             // }); 
+            console.log('transcription updated:', transcriptionForTopic);
             setTranscriptionForTopic('');  // 重置 transcription
         }
     }, [transcriptionForTopic]);

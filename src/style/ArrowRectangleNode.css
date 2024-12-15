@@ -10,12 +10,12 @@
     height: 0;
     border-top: 22px solid transparent;
     border-bottom: 22px solid transparent;
-    border-right: 18px solid #007bff;
+    border-right: 18px solid ;
   }
   
   .rectangle {
-    background-color: #007bff;
-    color: white;
+    /* background-color: #007bff; */
+    /* color: white; */
     padding: 5px;
     border-radius: 4px;
     font-size: 10px;

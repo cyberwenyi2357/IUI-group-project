@@ -1,6 +1,5 @@
 import React, { memo } from 'react';
-import { Handle, useStore, Position } from '@xyflow/react';
-
+import { useStore } from '@xyflow/react';
 interface NodeProps {
     id: string;
     data: {
