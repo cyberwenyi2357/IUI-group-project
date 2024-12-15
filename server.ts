@@ -1,21 +1,25 @@
-
 import { WebSocketServer } from 'ws';
 import recorder  from 'node-record-lpcm16';
 import { AssemblyAI } from 'assemblyai';
 import express from 'express';
 import cors from 'cors';
 import { openai } from './src/utils/openai';
+
+
 const app = express();
 const PORT = 8070;
+
 let storedEmbeddings: { text: string, embedding: number[] }[] = [];
 let transcriptionForMarking: string = '';
 let transcriptionForReminder: string = '';
 let currentParentId: string | null = null;
+
 app.use(cors({
     origin: 'http://localhost:5173', // 或者你的前端运行的端口
     methods: ['GET', 'POST'],
     credentials: true
 }));
+
 app.use(express.json());
 function cosineSimilarity(a: number[], b: number[]): number {
     const dotProduct = a.reduce((sum, val, i) => sum + val * b[i], 0);
@@ -23,31 +27,33 @@ function cosineSimilarity(a: number[], b: number[]): number {
     const magnitudeB = Math.sqrt(b.reduce((sum, val) => sum + val * val, 0));
     return dotProduct / (magnitudeA * magnitudeB);
 }
+
 //get embedding for questions
 app.post('/initial-embedding-for-questions', async (req, res) => {
     try {
-        const texts  = req.body;
+        const texts = req.body;
         for (const text of texts) {
-        const response = await openai.embeddings.create({
-            model: "text-embedding-3-small",
-            input: text,
-            encoding_format: "float",
-        });
-        const embedding = response.data[0].embedding;
-        // 存储 embedding
-        storedEmbeddings.push({
-            text,
-            embedding
-        });
+            const response = await openai.embeddings.create({
+                model: "text-embedding-3-small",
+                input: text,
+                encoding_format: "float",
+            });
+            const embedding = response.data[0].embedding;
+            // 存储 embedding
+            storedEmbeddings.push({
+                text,
+                embedding
+            });
         }
-        res.json({ success: true });
+        res.json({success: true});
         const storedTexts = storedEmbeddings.map(item => item.text);
-        console.log('stored texts',storedTexts);
+        console.log('stored texts', storedTexts);
     } catch (error) {
         console.error('Error generating embedding:', error);
-        res.status(500).json({ error: 'Failed to generate embedding' });
+        res.status(500).json({error: 'Failed to generate embedding'});
     }
 });
+
 //get embedding for realtime transcription
 app.post('/embedding', async (req, res) => {
     try {
@@ -59,14 +65,14 @@ app.post('/embedding', async (req, res) => {
         });
         const newEmbedding = response.data[0].embedding;
         const similarities = storedEmbeddings
-        .filter(e => e.embedding !== null)
-        .map((e, index) => ({    
-            text: e.text,
-            similarity: cosineSimilarity(newEmbedding, e.embedding!),
-            index: index         
-        }))
-        .sort((a, b) => b.similarity - a.similarity)
-        .slice(0, 1);  // 只返回最相似的一个
+            .filter(e => e.embedding !== null)
+            .map((e, index) => ({
+                text: e.text,
+                similarity: cosineSimilarity(newEmbedding, e.embedding!),
+                index: index
+            }))
+            .sort((a, b) => b.similarity - a.similarity)
+            .slice(0, 1);  // 只返回最相似的一个
         res.json({ 
             similarities: similarities
         });
@@ -76,6 +82,7 @@ app.post('/embedding', async (req, res) => {
         res.status(500).json({ error: 'Failed to generate embedding' });
     }
 });
+
 app.post('/update-parent', async(req, res) => {
     const { parentId } = req.body;
     currentParentId = parentId;
@@ -104,6 +111,7 @@ app.post('/update-parent', async(req, res) => {
     });
     transcriptionForMarking = '';
 });
+
 app.get('/handle-answer-click', async (req, res) => {
     // 设置 SSE headers
     res.setHeader('Content-Type', 'text/event-stream');
@@ -144,6 +152,7 @@ app.get('/handle-answer-click', async (req, res) => {
         //                 res.end();
         //             })
         // 第二个 API 调用获取跟进问题
+
         const followUpResponse = await openai.chat.completions.create({
             model: "gpt-4o",
             messages: [{
@@ -154,6 +163,7 @@ app.get('/handle-answer-click', async (req, res) => {
                 content: transcriptionForMarking
             }],
         });
+
         // 发送第二个结果
         transcriptionForMarking = '';
         const followUpQuestion = followUpResponse.choices[0].message.content;
@@ -167,12 +177,13 @@ app.get('/handle-answer-click', async (req, res) => {
         res.end();
     }
 });
+
 // 启动 HTTP 服务器
 app.listen(PORT, () => {
     console.log(`HTTP server running on http://localhost:${PORT}`);
 });
-const wss = new WebSocketServer({ port: 8080 });
 
+const wss = new WebSocketServer({ port: 8080 });
 wss.on('connection', (ws:WebSocket) => {
     console.log('Client connected');
 

@@ -13,7 +13,7 @@ import {
     MiniMap,
     type Edge,
     type Node,
-    type NodeProps
+    type NodeProps, useEdgesState
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { openai } from '../utils/openai.ts';
@@ -35,19 +35,19 @@ interface Result {
 }
 
 function App() {
-    const initialNodes: Node[] = [];
-    const initialEdges: Edge[] = [];
-    const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+    const [nodes, setNodes, onNodesChange] = useNodesState([]);
+    const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+
     const realTimeTranscriptionRef = useRef(null);
     const [showModal, setShowModal] = useState(false);
     const [scriptText, setScriptText] = useState('');
     const [similarityIndex, setSimilarityIndex] = useState(0);
     const simIndexRef = useRef(similarityIndex);
-    const [questionScript,setQuestionScript]=useState<Result | null>(null);
+
     const [firstNodeId, setFirstNodeId] = useState<string | null>(null);
-    const newNodes: Node[] = [];
     const [currentParentId, setCurrentParentId] = useState<string>('Group-0');
     const [tagNodeCounter, setTagNodeCounter] = useState<number[]>([]);
+
     // 在App组件的开头添加新的状态
     const [storedSegmentNodes, setStoredSegmentNodes] = useState<Node[]>([]);
     let xOffset = 50;
@@ -70,21 +70,22 @@ function App() {
             <ReminderCircleNode {...props} onClick={handleReminderNodeClick} />
         ),
     };
+
     const handleFirstNodeUpdate = () => {
         setTimeout(() => {
-        setNodes((nodes) => nodes.map(node => {
-            if (node.id === "0") {
-                return {
-                    ...node,
-                    style: {
-                        ...node.style,
-                        backgroundColor: 'rgb(255, 255, 100)'
-                    }
-                };
-            }
-            return node;
-        }));
-    },3000);
+            setNodes((nodes) => nodes.map(node => {
+                if (node.id === "0") {
+                    return {
+                        ...node,
+                        style: {
+                            ...node.style,
+                            backgroundColor: 'rgb(255, 255, 100)'
+                        }
+                    };
+                }
+                return node;
+            }));
+        }, 3000);
     }
 
     useEffect(() => {
@@ -318,8 +319,8 @@ function App() {
             setShowModal(false)
             const result = JSON.parse(response.choices[0].message.content || "{}");
             console.log('Parsed categories:', result);
-            setQuestionScript(result);
 
+            const newNodes: Node[] = [];
             result.categories.forEach((category: any) => {
                 let questionCounterForEachGroup=0;
                 const groupNode = createGroupNode(
@@ -349,7 +350,6 @@ function App() {
                 xOffset += 300;
                 setNodes(newNodes);
             });
-
         } catch (error) {
             console.error('Error parsing text with GPT:', error);
             alert('Error processing the text. Please try again.');
@@ -373,6 +373,8 @@ function App() {
             console.error('Error sending texts for embedding:', error);
         });
     }
+
+
     useEffect(() => {
         simIndexRef.current = similarityIndex;
         setNodes((prevNodes) => {
@@ -550,7 +552,7 @@ function App() {
             <ReactFlowProvider>
                 <ReactFlow
                     nodes={nodes}
-                    edges={initialEdges}
+                    edges={edges}
                     onNodesChange={onNodesChange}
                     onNodeDragStop={onNodeDragStop}
                     nodeTypes={nodeTypes}

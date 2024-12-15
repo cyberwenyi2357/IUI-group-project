@@ -9,7 +9,6 @@ interface Props {
     onNodeCreate: (newNode: Node) => void;
     firstNodeId: string | null;
     onFirstNodeUpdate: () => void;
-    
     onSimilarityUpdate: (data: Array<{index: number, similarity: number}>) => void;
 }
 
