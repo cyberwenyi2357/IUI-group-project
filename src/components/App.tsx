@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import RealTimeTranscription from './RealTimeTranscription';
-import '../style/index.css'
 import CircleNode from "./CircleNode.tsx";
 
 import {
@@ -105,7 +104,7 @@ function App() {
                     node.style?.backgroundColor &&
                     node.style.backgroundColor !== 'white'
                 );
-                
+
                 console.log('mostSimilarNode:', mostSimilarNode);
                 if(!mostSimilarNode) return prevNodes;
                 

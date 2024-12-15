@@ -7,6 +7,8 @@ export default defineConfig({
   server: {
     proxy: {
       '/token': 'http://localhost:3001'
-    }
+    },
+    host: true,
+    port: 5001
   }
 })

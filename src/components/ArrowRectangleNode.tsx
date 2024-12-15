@@ -1,5 +1,5 @@
 import React from 'react';
-import '../style/arrowRectangleNode.css'; // 用于样式
+
 interface ArrowRectangleNodeProps {
   data: {
     label: string;
