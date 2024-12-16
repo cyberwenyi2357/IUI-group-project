@@ -1,22 +1,20 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import RealTimeTranscription from './RealTimeTranscription';
 import CircleNode from "./CircleNode.tsx";
-
 import {
     ReactFlow,
     Background,
     Controls,
     ReactFlowProvider,
     useNodesState,
-    useReactFlow,
     MiniMap,
+    NodeToolbar,
     type Edge,
     type Node,
     type NodeProps, useEdgesState
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { openai } from '../utils/openai.ts';
-import { extractKeywords } from '../utils/openaiUtils.ts';
 import ArrowRectangleNode from './ArrowRectangleNode.tsx';
 import ReminderCircleNode from './ReminderCircleNode.tsx';
 
@@ -68,8 +66,26 @@ function App() {
         reminderCircle: (props: NodeProps) => (
             <ReminderCircleNode {...props} onClick={handleReminderNodeClick} />
         ),
+        'node-with-toolbar':NodeWithToolbar
     };
-
+    function NodeWithToolbar({ data, id }) {
+        const handleAbandon = () => {
+            console.log('Abandoning node:', id);
+            setNodes((nodes) => nodes.filter((node) => node.id !== id));
+        };
+        return (
+          <>
+            <NodeToolbar
+              isVisible={data.forceToolbarVisible || undefined}
+              position={data.toolbarPosition}
+            >
+              <button onClick={handleAbandon}>abandon</button>
+              <button>regenerate</button>
+            </NodeToolbar>
+            <div>{data?.label}</div>
+          </>
+        );
+      }
     const handleFirstNodeUpdate = () => {
         setTimeout(() => {
             setNodes((nodes) => nodes.map(node => {
@@ -89,7 +105,6 @@ function App() {
 
     useEffect(() => {
         console.log('tagNodeCounter updated:', tagNodeCounter);
-        
         // 创建 EventSource 连接
         const eventSource = new EventSource('http://localhost:8070/handle-answer-click');
     
@@ -128,6 +143,7 @@ function App() {
         eventSource.addEventListener('followUp', (event) => {
             const { followUpQuestion } = JSON.parse(event.data);
             console.log('Received follow-up question:', followUpQuestion);
+            // 解析 JSON 字符串
             // 在这里处理跟进问题
             // 比如设置到某个状态中
             setNodes(prevNodes => {
@@ -136,7 +152,7 @@ function App() {
                 if (lastNode) {
                     lastNode.data = {
                         ...lastNode.data,
-                        followUp: followUpQuestion
+                        followUp: followUpQuestion,
                     };
                 }
                 console.log('last node:', lastNode);
@@ -179,14 +195,15 @@ function App() {
         console.log('clicked arrow rectangle node',followUp);
         const clickedNode = nodes.find(node => node.id === nodeData.id);
         if (!clickedNode) return;
+        const newNodePosition = {
+            x: clickedNode.position.x,
+            y: clickedNode.position.y + 30
+        };
         const newNode: Node = {
             id: `followup-${Date.now()}`,
-            type: 'default',
+            type: 'node-with-toolbar',
             data: { label: followUp },
-            position: {
-                x: clickedNode.position.x ,
-                y: clickedNode.position.y+30
-            },
+            position: newNodePosition,
             parentId: clickedNode.parentId, // 保持相同的 parent
             style: {
                 backgroundColor: 'white',
@@ -196,7 +213,43 @@ function App() {
             },
             connectable:false
         };
-        setNodes((nodes) => [...nodes, newNode]);
+        setNodes((currentNodes) => {
+            // 找出所有可能重叠的节点
+            const overlappingNodes = currentNodes.filter(node => {
+                // 跳过当前点击的节点
+                if (node.id === clickedNode.id) return false;
+                
+                // 检查节点是否在同一个父节点下
+                if (node.parentId !== clickedNode.parentId) return false;
+    
+                // 检查节点是否与新节点位置重叠
+                const nodeY = node.position.y;
+                
+                return nodeY >= newNode.position.y && 
+                       nodeY < newNode.position.y + (newNode.style?.height as number);
+            });
+    
+            // 如果有重叠的节点，将它们向下移动
+            if (overlappingNodes.length > 0) {
+                const shiftAmount = (newNode.style?.height as number) + 10; // 额外添加10px间距
+                
+                return currentNodes.map(node => {
+                    if (overlappingNodes.find(n => n.id === node.id)) {
+                        return {
+                            ...node,
+                            position: {
+                                ...node.position,
+                                y: node.position.y + shiftAmount
+                            }
+                        };
+                    }
+                    return node;
+                }).concat(newNode);
+            }
+    
+            // 如果没有重叠，直接添加新节点
+            return [...currentNodes, newNode];
+        });
     };
     const handleReminderNodeClick = async (nodeId: string) => {
         const clickedNode = nodes.find(node => node.id === nodeId);

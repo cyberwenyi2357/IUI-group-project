@@ -31,11 +31,11 @@ export default function EditableNode({ id, data }: NodeProps) {
                     textAlign: 'center',
                     resize: 'none',
                     overflow: 'hidden',
-                    minHeight: '20px',
+                    minHeight: '15px',
                     backgroundColor: 'transparent',
                     fontFamily: 'inherit',
                     fontSize: 'inherit',
-                    lineHeight: '1.5',
+                    lineHeight: '1',
                 }}
                 rows={1}
 

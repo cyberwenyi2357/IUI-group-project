@@ -67,12 +67,35 @@ button:focus-visible {
     background-color: #f9f9f9;
   }
 }
+.react-flow {
+  /* Custom Variables */
+  --xy-theme-selected: #F57DBD;
+  --xy-theme-hover: #C5C5C5;
+  --xy-theme-edge-hover: black;
+  --xy-theme-color-focus: #E8E8E8;
+
+  /* Built-in Variables see https://reactflow.dev/learn/customization/theming */
+  --xy-node-border-default: 1px solid #EDEDED;
+
+  --xy-node-boxshadow-default: 
+    0px 3.54px 4.55px 0px #00000005, 
+    0px 3.54px 4.55px 0px #0000000D, 
+    0px 0.51px 1.01px 0px #0000001A;
+
+  --xy-node-border-radius-default: 5px;
+
+  --xy-handle-background-color-default: #ffffff;
+  --xy-handle-border-color-default: #AAAAAA;
+
+  --xy-edge-label-color-default: #505050;
+}
+
 .react-flow__node-circle,
 .react-flow__node-reminderCircle{
   color: #000000;
-  border-radius: 100%;
+  border-radius: 8px; /* 改为小圆角 */
   display: flex;
-  height: 60px;
+  height: 30px;
   width: 60px;
   box-shadow:
           4px 2px 8px rgba(92, 92, 92, 0.3),
@@ -86,14 +109,14 @@ button:focus-visible {
   display: flex;
   padding: 2px;
   position: relative;
-  border-radius: 50%;
+  border-radius: 8px;
   flex-grow: 1;
 }
 
 .react-flow__node-circle .inner,
 .react-flow__node-reminderCircle .inner{
   background: rgba(255, 255, 255, 0.5);
-  border-radius: 100%;
+  border-radius: 8px;
   display: flex;
   flex-direction: column;
   justify-content: center;

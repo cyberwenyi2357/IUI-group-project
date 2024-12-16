@@ -15,7 +15,7 @@ let transcriptionForReminder: string = '';
 let currentParentId: string | null = null;
 
 app.use(cors({
-    origin: 'http://localhost:5173', // 或者你的前端运行的端口
+    origin: 'http://localhost:5001', // 或者你的前端运行的端口
     methods: ['GET', 'POST'],
     credentials: true
 }));
@@ -157,7 +157,7 @@ app.get('/handle-answer-click', async (req, res) => {
             model: "gpt-4o",
             messages: [{
                 role: "system",
-                content: "You are an expert in qualitative research, and you are investigating User's Sense of Agency Over Time and Content Choice on Netflix. You are given a segment of User's transcription, and you need to generate a follow-up question based on the segment.Please just give me a question, no other words "
+                content: "You are investigating User's Sense of Agency Over Time and Content Choice on Netflix. You are given a piece of user's answer in transcriptForMarking, please suggest one follow up question. Please be brief, just give some keywords/concepts of the question, but not a complete question. "
             }, {
                 role: "user",
                 content: transcriptionForMarking
