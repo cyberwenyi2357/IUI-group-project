@@ -31,8 +31,25 @@ const RealTimeTranscription = forwardRef((props:Props, ref) => {
             console.error('WebSocket error:', error);
         };
         wsRef.current.onmessage = (event) => {
-            setTranscriptionForTopic((prev) => prev + event.data + '\n');
-            setTranscriptionForSegment((prev) => prev + event.data + '\n');
+
+            try {
+                const data = JSON.parse(event.data);
+                
+                // 检查是否是 similarity 类型的消息
+                if (data.type === 'similarity') {
+                    // 提取索引并传递给父组件
+                    const indices = data.data.map((sim: {
+                        index: number,
+                        similarity: number
+                    }) => ({
+                        index: sim.index,
+                        similarity: sim.similarity
+                    }));
+                    props.onSimilarityUpdate(indices);
+                } 
+            } catch (error) {
+                console.error('Error parsing WebSocket message:', error);
+            }
         };
 
         return () => {
@@ -88,39 +105,39 @@ const RealTimeTranscription = forwardRef((props:Props, ref) => {
     };
 
     //实时检测topic
-    useEffect(() => {
-        const words = transcriptionForTopic.trim().split(/\s+/);
-        if (words.length >= 25) {
-            fetch('http://localhost:8070/embedding', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ text: transcriptionForTopic })
-            }).then(response => response.json())
-            .then(data => {
-                // 提取索引并传递给父组件
-                const indices = data.similarities.map((sim: {
-                    index: number,
-                    similarity: number
-                }) =>  ({
-                    index: sim.index,
-                    similarity: sim.similarity
-                }));
-                props.onSimilarityUpdate(indices);
-            })
-            .catch(error => console.error('Error:', error));
-            // extractKeywords(transcription).then(keyword=>{
-            //     if(keyword){
-            //     setKeywords(keyword);
-            //     onNodeUpdate(keyword);
-            //     }
+    // useEffect(() => {
+    //     const words = transcriptionForTopic.trim().split(/\s+/);
+    //     if (words.length >= 25) {
+    //         fetch('http://localhost:8070/embedding', {
+    //             method: 'POST',
+    //             headers: {
+    //                 'Content-Type': 'application/json'
+    //             },
+    //             body: JSON.stringify({ text: transcriptionForTopic })
+    //         }).then(response => response.json())
+    //         .then(data => {
+    //             // 提取索引并传递给父组件
+    //             const indices = data.similarities.map((sim: {
+    //                 index: number,
+    //                 similarity: number
+    //             }) =>  ({
+    //                 index: sim.index,
+    //                 similarity: sim.similarity
+    //             }));
+    //             props.onSimilarityUpdate(indices);
+    //         })
+    //         .catch(error => console.error('Error:', error));
+    //         // extractKeywords(transcription).then(keyword=>{
+    //         //     if(keyword){
+    //         //     setKeywords(keyword);
+    //         //     onNodeUpdate(keyword);
+    //         //     }
                 
-            // }); 
-            console.log('transcription updated:', transcriptionForTopic);
-            setTranscriptionForTopic('');  // 重置 transcription
-        }
-    }, [transcriptionForTopic]);
+    //         // }); 
+    //         console.log('transcription updated:', transcriptionForTopic);
+    //         setTranscriptionForTopic('');  // 重置 transcription
+    //     }
+    // }, [transcriptionForTopic]);
 
 
     return (

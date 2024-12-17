@@ -254,39 +254,7 @@ function App() {
     const handleReminderNodeClick = async (nodeId: string) => {
         const clickedNode = nodes.find(node => node.id === nodeId);
         if (!clickedNode || clickedNode.type !== 'reminderCircle') return;
-        // const newNode: Node = {
-        //     id: `reminder-arrow-${Date.now()}`,
-        //     type: 'arrowRectangle',
-        //     data: { label: 'Trending section', color: 'transparent'},
-        //     position: {
-        //         x: clickedNode.position.x,
-        //         y: clickedNode.position.y + 50
-        //     },
-        //     parentId: clickedNode.parentId,
-        //     style: {
-        //         backgroundColor: 'transparent',
-        //         padding: '3px',
-        //         borderRadius: '5px',
-        //         border: '2px solid #ccc'
-        //     }
-        // };
-        // const secondNewNode: Node = {
-        //     id: `reminder-arrow-${Date.now()}`,
-        //     type: 'arrowRectangle',
-        //     data: { label: 'Thumbnail and description', color: 'transparent'},
-        //     position: {
-        //         x: clickedNode.position.x,
-        //         y: clickedNode.position.y + 100
-        //     },
-        //     parentId: clickedNode.parentId,
-        //     style: {
-        //         backgroundColor: 'transparent',
-        //         padding: '2px',
-        //         borderRadius: '5px',
-        //         border: '2px solid #ccc'
-        //     }
-        // }
-        // setNodes((nodes) => [...nodes, newNode, secondNewNode]);
+    
         if (storedSegmentNodes.length > 0) {
             setNodes(prevNodes => [...prevNodes, ...storedSegmentNodes]);
         }
@@ -402,6 +370,23 @@ function App() {
                 xOffset += 300;
                 setNodes(newNodes);
             });
+            const totalGroups = result.categories.length;
+            // fetch('http://localhost:8070/update-groups-count', {
+            //     method: 'POST',
+            //     headers: {
+            //         'Content-Type': 'application/json',
+            //     },
+            //     body: JSON.stringify({
+            //         groupsCount: totalGroups
+            //     }),
+            // }).then(response => response.json())
+            // .then(data => {
+            //     if (data.success) {
+            //         console.log(`Successfully sent groups count: ${totalGroups}`);
+            //     }
+            // }).catch(error => {
+            //     console.error('Error sending groups count:', error);
+            // });
         } catch (error) {
             console.error('Error parsing text with GPT:', error);
             alert('Error processing the text. Please try again.');

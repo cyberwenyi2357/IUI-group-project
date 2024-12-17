@@ -12,8 +12,13 @@ const PORT = 8070;
 let storedEmbeddings: { text: string, embedding: number[] }[] = [];
 let transcriptionForMarking: string = '';
 let transcriptionForReminder: string = '';
+let transcriptionBuffer: string = '';
 let currentParentId: string | null = null;
-
+let transcriptionStore: TranscriptionData[] = [];
+interface TranscriptionData {
+    parentId: string;
+    transcription: string;
+}
 app.use(cors({
     origin: 'http://localhost:5001', // 或者你的前端运行的端口
     methods: ['GET', 'POST'],
@@ -55,37 +60,58 @@ app.post('/initial-embedding-for-questions', async (req, res) => {
 });
 
 //get embedding for realtime transcription
-app.post('/embedding', async (req, res) => {
-    try {
-        const { text } = req.body;
-        const response = await openai.embeddings.create({
-            model: "text-embedding-3-small",
-            input: text,
-            encoding_format: "float",
-        });
-        const newEmbedding = response.data[0].embedding;
-        const similarities = storedEmbeddings
-            .filter(e => e.embedding !== null)
-            .map((e, index) => ({
-                text: e.text,
-                similarity: cosineSimilarity(newEmbedding, e.embedding!),
-                index: index
-            }))
-            .sort((a, b) => b.similarity - a.similarity)
-            .slice(0, 1);  // 只返回最相似的一个
-        res.json({ 
-            similarities: similarities
-        });
-        console.log('similarities',similarities); 
-    } catch (error) {
-        console.error('Error generating embedding:', error);
-        res.status(500).json({ error: 'Failed to generate embedding' });
-    }
-});
-
+// app.post('/embedding', async (req, res) => {
+//     try {
+//         const { text } = req.body;
+//         const response = await openai.embeddings.create({
+//             model: "text-embedding-3-small",
+//             input: text,
+//             encoding_format: "float",
+//         });
+//         const newEmbedding = response.data[0].embedding;
+//         const similarities = storedEmbeddings
+//             .filter(e => e.embedding !== null)
+//             .map((e, index) => ({
+//                 text: e.text,
+//                 similarity: cosineSimilarity(newEmbedding, e.embedding!),
+//                 index: index
+//             }))
+//             .sort((a, b) => b.similarity - a.similarity)
+//             .slice(0, 1);  // 只返回最相似的一个
+//         res.json({ 
+//             similarities: similarities
+//         });
+//         console.log('similarities',similarities); 
+//     } catch (error) {
+//         console.error('Error generating embedding:', error);
+//         res.status(500).json({ error: 'Failed to generate embedding' });
+//     }
+// });
+// app.post('/update-groups-count', (req, res) => {
+//     try {
+//         const { groupsCount } = req.body;
+//         totalGroups = groupsCount;
+//         console.log('Updated total groups:', totalGroups);
+//         res.sendStatus(200); // 只发送成功状态码
+//     } catch (error) {
+//         console.error('Error updating groups count:', error);
+//         res.sendStatus(500); // 只发送错误状态码
+//     }
+// });
 app.post('/update-parent', async(req, res) => {
     const { parentId } = req.body;
     currentParentId = parentId;
+    const existingIndex = transcriptionStore.findIndex(item => item.parentId === parentId);
+    if (existingIndex !== -1) {
+        // 如果已存在该 parentId，更新 transcription
+        transcriptionStore[existingIndex].transcription += transcriptionForReminder;
+    } else {
+        // 如果是新的 parentId，创建新记录
+        transcriptionStore.push({
+            parentId,
+            transcription: transcriptionForReminder
+        });
+    }
     const reminders = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [{
@@ -109,7 +135,7 @@ app.post('/update-parent', async(req, res) => {
         parentId: currentParentId,
         segments: segments
     });
-    transcriptionForMarking = '';
+    transcriptionForReminder = '';
 });
 
 app.get('/handle-answer-click', async (req, res) => {
@@ -136,28 +162,13 @@ app.get('/handle-answer-click', async (req, res) => {
         const segments = JSON.parse(segmentResponse.choices[0].message.content || '{}');
         console.log('segments',segments);
         res.write(`event: segments\ndata: ${JSON.stringify(segments)}\n\n`);
-        // openai.chat.completions.create({
-        //                 model: "gpt-4o",
-        //                 messages: [{
-        //                     role: "system",
-        //                     content: "You are an expert in qualitative research, and you are investigating User's Sense of Agency Over Time and Content Choice on Netflix. You are given a segment of User's transcription, and you need to generate a follow-up question based on the segment."
-        //                 }, {
-        //                     role: "user",
-        //                     content: transcriptionForMarking
-        //                 }],
-        //             }).then(followUpQuestion =>{
-        //                 transcriptionForMarking = '';
-        //                 console.log('followUpQuestion',followUpQuestion);
-        //                 res.write(`event: followUpQuestion\ndata: ${JSON.stringify({ followUpQuestion: followUpQuestion.choices[0].message.content })}\n\n`);
-        //                 res.end();
-        //             })
         // 第二个 API 调用获取跟进问题
 
         const followUpResponse = await openai.chat.completions.create({
             model: "gpt-4o",
             messages: [{
                 role: "system",
-                content: "You are investigating User's Sense of Agency Over Time and Content Choice on Netflix. You are given a piece of user's answer in transcriptForMarking, please suggest one follow up question. Please be brief, just give some keywords/concepts of the question, but not a complete question. "
+                content: "You are investigating students' opinion on collaborative learning and their requirements for intelligent agents. You are given a piece of user's answer in transcriptForMarking, please suggest one follow up question. Please be brief, just give some keywords/concepts of the question, but not a complete question. "
             }, {
                 role: "user",
                 content: transcriptionForMarking
@@ -207,12 +218,46 @@ wss.on('connection', (ws:WebSocket) => {
         console.log('Session closed:', code, reason);
     });
 
-    transcriber.on('transcript', (transcript: { text: string; message_type: string }) => {
+    transcriber.on('transcript', async(transcript: { text: string; message_type: string }) => {
         if (transcript.text && transcript.message_type === 'FinalTranscript') {
-            ws.send(transcript.text);
+            // ws.send(transcript.text);
+            transcriptionBuffer += transcript.text + ' ';
             transcriptionForMarking += transcript.text;
             transcriptionForReminder += transcript.text;
             console.log('transcriptionForMarking',transcriptionForMarking);
+            const words = transcriptionBuffer.trim().split(/\s+/);
+            if (words.length >= 25) {
+                try {
+                    // 生成 embedding 并计算相似度
+                    const response = await openai.embeddings.create({
+                        model: "text-embedding-3-small",
+                        input: transcriptionBuffer,
+                        encoding_format: "float",
+                    });
+                    
+                    const newEmbedding = response.data[0].embedding;
+                    const similarities = storedEmbeddings
+                        .filter(e => e.embedding !== null)
+                        .map((e, index) => ({
+                            text: e.text,
+                            similarity: cosineSimilarity(newEmbedding, e.embedding!),
+                            index: index
+                        }))
+                        .sort((a, b) => b.similarity - a.similarity)
+                        .slice(0, 1);
+
+                    // 通过 WebSocket 发送相似度结果
+                    ws.send(JSON.stringify({
+                        type: 'similarity',
+                        data: similarities
+                    }));
+
+                    // 清空缓冲区
+                    transcriptionBuffer = '';
+                } catch (error) {
+                    console.error('Error generating embedding:', error);
+                }
+            }
         }
     });
 
