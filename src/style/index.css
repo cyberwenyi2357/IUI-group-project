@@ -49,6 +49,14 @@ button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
 }
 
+.recording-button {
+  position: absolute;
+  right: 5vw;
+  top: 1vw;
+  zIndex: 6;
+  border: 5px solid transparent;
+}
+
 
 .recording-button:focus,
 .recording-button:focus-visible{

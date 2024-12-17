@@ -1,9 +1,11 @@
 import { useState, useEffect, useImperativeHandle, forwardRef, useRef } from 'react';
-import '../style/index.css'
 
 import {
     type Node,  // <- 这里导入了 Node 类型
 } from '@xyflow/react';
+
+import {sendEvent} from "../utils/logUtils";
+
 
 interface Props {
     onNodeCreate: (newNode: Node) => void;
@@ -15,12 +17,11 @@ interface Props {
 const RealTimeTranscription = forwardRef((props:Props, ref) => {
     const { onNodeCreate, firstNodeId } = props;
     const [transcriptionForTopic, setTranscriptionForTopic] = useState('');
-    const [transcriptionForSegment, setTranscriptionForSegment] = useState('');
     const [isRecording, setIsRecording] = useState(false);
-    const containerRef = useRef(null);
+
     const wsRef=useRef<WebSocket|null>(null);
-    const [borderColor, setBorderColor] = useState("transparent"); 
     const [nodeCounter, setNodeCounter] = useState(1);
+
     useEffect(() => {
         // 建立 WebSocket 连接
         wsRef.current= new WebSocket('ws://localhost:8080');
@@ -31,7 +32,6 @@ const RealTimeTranscription = forwardRef((props:Props, ref) => {
             console.error('WebSocket error:', error);
         };
         wsRef.current.onmessage = (event) => {
-
             try {
                 const data = JSON.parse(event.data);
                 
@@ -68,7 +68,8 @@ const RealTimeTranscription = forwardRef((props:Props, ref) => {
         if(isRecording){
             let toggle = true;
             intervalId = setInterval(() => {
-                setBorderColor(toggle ? "#F08080" : "transparent"); // 橙红色和蓝色之间切换
+                // TODO: yuiz: sorry this is too stupid, let me re-implement it later.
+                // setBorderColor(toggle ? "#F08080" : "transparent"); // 橙红色和蓝色之间切换
                 toggle = !toggle;
               }, 800); // 每 500 毫秒切换一次颜色
         }
@@ -76,11 +77,17 @@ const RealTimeTranscription = forwardRef((props:Props, ref) => {
             clearInterval(intervalId);
           };
     },[isRecording])
+
     useImperativeHandle(ref, () => ({
         getTranscriptionContent: () => transcriptionForTopic,
     }));
 
     const handleClick = () => {
+        sendEvent({
+            "name": "ClickOnStart/Stop",
+            "time": new Date().toISOString(),
+        });
+
         setIsRecording((prev) => !prev);
         if (!isRecording && firstNodeId) {
             props.onFirstNodeUpdate();
@@ -89,7 +96,7 @@ const RealTimeTranscription = forwardRef((props:Props, ref) => {
                 type: 'circle',
                 data: { keywords: 'Mark' },
                 position: { x: 230, y: 20 },
-               parentId:firstNodeId
+                parentId:firstNodeId
             };
             const reminderNode: Node = {
                 id: `reminder-${nodeCounter}`,
@@ -139,15 +146,12 @@ const RealTimeTranscription = forwardRef((props:Props, ref) => {
     //     }
     // }, [transcriptionForTopic]);
 
-
     return (
-        <div ref={containerRef}>
-
-           <div style={{position: 'absolute', left: '5vw', top: '20vw', zIndex: 6}}>
-            </div>
-                <button className={'recording-button'} style={{position: 'absolute', right: '5vw', top: '1vw', zIndex: 6,border: `5px solid ${borderColor}`}}  onClick={handleClick}>{isRecording?'Stop':'Start'}</button>
-
-        </div>
+        <>
+            <button className={'recording-button'} onClick={handleClick}>
+                {isRecording ? 'Stop' : 'Start'}
+            </button>
+        </>
     );
 });
 

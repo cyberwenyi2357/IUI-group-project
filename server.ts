@@ -3,6 +3,9 @@ import recorder  from 'node-record-lpcm16';
 import { AssemblyAI } from 'assemblyai';
 import express from 'express';
 import cors from 'cors';
+import https from "https";
+// import http from "http";
+
 import { openai } from './src/utils/openai';
 
 
@@ -157,6 +160,45 @@ app.get('/handle-answer-click', async (req, res) => {
         res.end();
     }
 });
+
+
+// For reporting any event for logging
+app.post("/send-event", async (req, res) => {
+    // NOTE: the host entry could be changed depending on needs.
+    const logServerHost = "interviewtool-hjeyhxb7a3cndnb4.australiaeast-01.azurewebsites.net";
+    const options: https.RequestOptions = {
+        hostname: logServerHost,
+        port: 443,
+        path: '/api/record',
+        method: 'POST',
+    };
+
+    const req2LogServer = https.request(options, (resFromLogServer) => {
+        let responseData = '';
+
+        resFromLogServer.on('data', (chunk) => {
+            responseData += chunk;
+        });
+
+        resFromLogServer.on('end', () => {
+            if (resFromLogServer.statusCode && resFromLogServer.statusCode >= 200 && resFromLogServer.statusCode < 300) {
+                res.status(200).json(responseData);
+            } else {
+                res.status(500).json({ error: `Request failed with status code ${resFromLogServer.statusCode}: ${responseData}`});
+            }
+        });
+    });
+
+    req2LogServer.on('error', (error) => {
+        res.status(500).json({ error: 'Failed to record event', error_body: error});
+    });
+
+    const event4Log = req.body;
+    // console.log("Event4Log", event4Log);
+    req2LogServer.write(JSON.stringify(event4Log));
+    req2LogServer.end();
+})
+
 
 // 启动 HTTP 服务器
 app.listen(PORT, () => {

@@ -21,6 +21,9 @@ import ReminderCircleNode from './ReminderCircleNode.tsx';
 import EditableNode from "./EditableNode";
 import GroupNode from "./GroupNode";
 
+import {sendEvent} from "../utils/logUtils";
+import {send} from "vite";
+
 
 interface Category {
     category: string;
@@ -49,30 +52,37 @@ function App() {
     const [storedSegmentNodes, setStoredSegmentNodes] = useState<Node[]>([]);
     let xOffset = 50;
     let nodeCounter = 0;
-    // const { getIntersectingNodes } = useReactFlow();
 
     const nodeTypes = {
         editable: EditableNode,
         circle: (props: NodeProps) => (
-            <CircleNode {...props} onClick={handleMarkNodeClick} />
+            <CircleNode
+                {...props}
+                onClick={handleMarkNodeClick}
+            />
         ),
         group: GroupNode,
         arrowRectangle: (props: any) => (
             <ArrowRectangleNode
-              {...props}
-              onClick={handleArrowRectangleNodeClick}
+                {...props}
+                onClick={handleArrowRectangleNodeClick}
             />
         ),
         reminderCircle: (props: NodeProps) => (
-            <ReminderCircleNode {...props} onClick={handleReminderNodeClick} />
+            <ReminderCircleNode
+                {...props}
+                onClick={handleReminderNodeClick}
+            />
         ),
         'node-with-toolbar':NodeWithToolbar
     };
+
     function NodeWithToolbar({ data, id }) {
         const handleAbandon = () => {
             console.log('Abandoning node:', id);
             setNodes((nodes) => nodes.filter((node) => node.id !== id));
         };
+
         return (
           <>
             <NodeToolbar
@@ -86,6 +96,7 @@ function App() {
           </>
         );
       }
+
     const handleFirstNodeUpdate = () => {
         setTimeout(() => {
             setNodes((nodes) => nodes.map(node => {
@@ -176,13 +187,17 @@ function App() {
 
     const handleMarkNodeClick = async (nodeId: string) => {
         console.log('clicked circle node',nodeId);
+        sendEvent({
+            "name": "ClickOnMark",
+            "time": new Date().toISOString(),
+        });
+
         const clickedNode = nodes.find(node => node.id === nodeId);
         if (!clickedNode || clickedNode.type !== 'circle')
             return ;
         // TODO: 2. once you recorded the highlighted node as status, no need to find it everytime.
-        
-
         // TODO: 3. once you recorded the tag nodes counter inside the highlighted node, we can remove the tagNodeCounter status, and avoid the useEffect() then.
+
         setTagNodeCounter(prev => {
             const newCounter = [...prev]; // Create a new array
             newCounter[Number(simIndexRef.current)] = (prev[Number(simIndexRef.current)] || 0) + 1;
@@ -190,11 +205,19 @@ function App() {
         });
         console.log(JSON.stringify(tagNodeCounter));
     }
+
     const handleArrowRectangleNodeClick = async (followUp: string, event: React.MouseEvent, nodeData: Node) => {
+        sendEvent({
+            "name": "ClickOnBlueArrowRectangleNode",
+            "time": new Date().toISOString(),
+            "text": followUp,
+        });
+
         console.log('clicked arrow rectangle node', nodeData.id);
         console.log('clicked arrow rectangle node',followUp);
         const clickedNode = nodes.find(node => node.id === nodeData.id);
         if (!clickedNode) return;
+
         const newNodePosition = {
             x: clickedNode.position.x,
             y: clickedNode.position.y + 30
@@ -213,6 +236,7 @@ function App() {
             },
             connectable:false
         };
+
         setNodes((currentNodes) => {
             // 找出所有可能重叠的节点
             const overlappingNodes = currentNodes.filter(node => {
@@ -251,7 +275,13 @@ function App() {
             return [...currentNodes, newNode];
         });
     };
+
     const handleReminderNodeClick = async (nodeId: string) => {
+        sendEvent({
+            "name": "ClickOnMissed",
+            "time": new Date().toISOString(),
+        });
+
         const clickedNode = nodes.find(node => node.id === nodeId);
         if (!clickedNode || clickedNode.type !== 'reminderCircle') return;
         const parentId = clickedNode.parentId;
@@ -470,6 +500,7 @@ function App() {
             );
         });
     }, [similarityIndex]);
+
     const handleSimilarityUpdate = (similarityData: Array<{index: number, similarity: number}>) => {
         setSimilarityIndex(similarityData[0].index);
         // TODO: 1. record the highlighted node here in this function, record the number of tageNodes inside the highlighted node.
@@ -505,9 +536,22 @@ function App() {
         } ));
     };
 
+    const onUploadScript = () => {
+        sendEvent({
+            "name": "ClickOnUploadScript",
+            "time": new Date().toISOString(),
+        });
+        setShowModal(true);
+    }
+
     return (
         <div style={{ height: '95vh', width: '100vw' }}>
-            <button style={{ position: 'absolute', left: '3vw', top: '1vw', zIndex: 2 }} onClick={() => setShowModal(true)}>Upload script</button>
+            <button
+                style={{ position: 'absolute', left: '3vw', top: '1vw', zIndex: 2 }}
+                onClick={onUploadScript}>
+                Upload script
+            </button>
+
             {showModal && (
                 <div style={{
                     position: 'absolute',
