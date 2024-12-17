@@ -42,7 +42,7 @@ function App() {
     const simIndexRef = useRef(similarityIndex);
 
     const [firstNodeId, setFirstNodeId] = useState<string | null>(null);
-    const [currentParentId, setCurrentParentId] = useState<string>('Group-0');
+    const [currentParentId, setCurrentParentId] = useState<string>(' ');
     const [tagNodeCounter, setTagNodeCounter] = useState<number[]>([]);
 
     // 在App组件的开头添加新的状态
@@ -254,11 +254,47 @@ function App() {
     const handleReminderNodeClick = async (nodeId: string) => {
         const clickedNode = nodes.find(node => node.id === nodeId);
         if (!clickedNode || clickedNode.type !== 'reminderCircle') return;
+        const parentId = clickedNode.parentId;
+        try {
+            // 调用新的后端接口来生成 talking points
+            const response = await fetch('http://localhost:8070/generate-reminder-talking-points', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ 
+                    parentId
+                }),
+            });
     
-        if (storedSegmentNodes.length > 0) {
-            setNodes(prevNodes => [...prevNodes, ...storedSegmentNodes]);
-        }
+            if (!response.ok) {
+                throw new Error('Failed to generate talking points');
+            }
+            const segments = await response.json();
+        
+            // 找到父节点以获取位置信息
+            const parentNode = nodes.find(node => node.id === parentId);
+            
+            // 创建新节点
+            const newNodes = segments.map((segment: { keyword: string }, index: number) => ({
+                id: `segment-${Date.now()}-${index}`,
+                type: 'arrowRectangle',
+                data: { label: segment.keyword, color: '#FFA500' },
+                position: {
+                    x: parentNode?.position?.x ?? 0 + (parentNode?.style?.width as number)+80,
+                    y: Number(parentNode?.position?.y ?? 0) + (index * 50)
+                },
+                parentId: parentId,
+            }));
+    
+            // 存储新创建的节点
+            setStoredSegmentNodes(newNodes);
+            // 立即显示节点
+        setNodes(prevNodes => [...prevNodes, ...newNodes]);
+    } catch (error) {
+        console.error('Error generating talking points:', error);
     }
+}
             // 存储其他segments到数组中
             // const previousSegments = segments.slice(0, -1).map((seg: { text: string }) => seg.text);
             // console.log('Previous segments:', previousSegments);
@@ -371,22 +407,6 @@ function App() {
                 setNodes(newNodes);
             });
             const totalGroups = result.categories.length;
-            // fetch('http://localhost:8070/update-groups-count', {
-            //     method: 'POST',
-            //     headers: {
-            //         'Content-Type': 'application/json',
-            //     },
-            //     body: JSON.stringify({
-            //         groupsCount: totalGroups
-            //     }),
-            // }).then(response => response.json())
-            // .then(data => {
-            //     if (data.success) {
-            //         console.log(`Successfully sent groups count: ${totalGroups}`);
-            //     }
-            // }).catch(error => {
-            //     console.error('Error sending groups count:', error);
-            // });
         } catch (error) {
             console.error('Error parsing text with GPT:', error);
             alert('Error processing the text. Please try again.');
@@ -428,6 +448,7 @@ function App() {
                 setCurrentParentId(mostSimilarNode.parentId ?? 'Group-0');
                 console.log('stage changed');
                 // Send update to backend only when parentId changes
+                //
                 fetch('http://localhost:8070/update-parent', {
                     method: 'POST',
                     headers: {
@@ -436,51 +457,6 @@ function App() {
                     body: JSON.stringify({
                         parentId: mostSimilarNode.parentId
                     }),
-                }).then(response => response.json())
-                .then(data => {
-                    if (data.success && data.segments) {
-                        console.log('Received segments:', data.segments);
-                        // Handle the segments data here
-                        const parentNode = nodes.find(node => node.id === mostSimilarNode.parentId);
-                        
-                    //     const newNodes = data.segments.map((segment: { keyword: string }, index: number) => ({
-                    //         id: `segment-${Date.now()}-${index}`,
-                    //         type: 'arrowRectangle',
-                    //         data: { label: segment.keyword, color: '#FFA500' },
-                    //         position: {
-                    //             x: parentNode?.position?.x??0 + (parentNode?.style?.width as number),// Keep x position constant
-                    //             y: parentNode?.position?.y??0 + (index * 50)// Spread nodes vertically, starting 50px below the similar node
-                    //         },
-                    //         parentId: mostSimilarNode.parentId,
-
-                    //     })
-                    // );
-                    const newNodes = data.segments.map((segment: { keyword: string }, index: number) => {
-                        console.log(`Creating node for segment ${index}:`, {
-                            segment: segment,
-                            nodeId: `segment-${Date.now()}-${index}`,
-                            calculatedY: Number(parentNode?.position?.y??0) + (index * 50),
-                            index: index,
-                            offset: index * 50,
-                            position: {
-                                x: parentNode?.position?.x??0 + (parentNode?.style?.width as number),
-                                y: parentNode?.position?.y??0 + (index * 50)
-                            }
-                        });
-                        
-                        return {
-                            id: `segment-${Date.now()}-${index}`,
-                            type: 'arrowRectangle',
-                            data: { label: segment.keyword, color: '#FFA500' },
-                            position: {
-                                x: parentNode?.position?.x??0 + (parentNode?.style?.width as number),
-                                y: Number(parentNode?.position?.y??0) + (index * 50)
-                            },
-                            parentId: mostSimilarNode.parentId,
-                        };
-                    });
-                        setStoredSegmentNodes(newNodes);
-                    }
                 }).catch(error => {
                     console.error('Error sending parent ID to backend:', error);
                 });
@@ -497,7 +473,7 @@ function App() {
     const handleSimilarityUpdate = (similarityData: Array<{index: number, similarity: number}>) => {
         setSimilarityIndex(similarityData[0].index);
         // TODO: 1. record the highlighted node here in this function, record the number of tageNodes inside the highlighted node.
-        // 这里可以用这些索引���更新节点状态
+        // 这里可以用这些索引更新节点状态
         // 例如：高亮显示相似的节点
         setNodes(nodes => nodes.map(node =>{
             // 只更新 type 为 'question' 的节点

@@ -59,48 +59,10 @@ app.post('/initial-embedding-for-questions', async (req, res) => {
     }
 });
 
-//get embedding for realtime transcription
-// app.post('/embedding', async (req, res) => {
-//     try {
-//         const { text } = req.body;
-//         const response = await openai.embeddings.create({
-//             model: "text-embedding-3-small",
-//             input: text,
-//             encoding_format: "float",
-//         });
-//         const newEmbedding = response.data[0].embedding;
-//         const similarities = storedEmbeddings
-//             .filter(e => e.embedding !== null)
-//             .map((e, index) => ({
-//                 text: e.text,
-//                 similarity: cosineSimilarity(newEmbedding, e.embedding!),
-//                 index: index
-//             }))
-//             .sort((a, b) => b.similarity - a.similarity)
-//             .slice(0, 1);  // 只返回最相似的一个
-//         res.json({ 
-//             similarities: similarities
-//         });
-//         console.log('similarities',similarities); 
-//     } catch (error) {
-//         console.error('Error generating embedding:', error);
-//         res.status(500).json({ error: 'Failed to generate embedding' });
-//     }
-// });
-// app.post('/update-groups-count', (req, res) => {
-//     try {
-//         const { groupsCount } = req.body;
-//         totalGroups = groupsCount;
-//         console.log('Updated total groups:', totalGroups);
-//         res.sendStatus(200); // 只发送成功状态码
-//     } catch (error) {
-//         console.error('Error updating groups count:', error);
-//         res.sendStatus(500); // 只发送错误状态码
-//     }
-// });
 app.post('/update-parent', async(req, res) => {
     const { parentId } = req.body;
     currentParentId = parentId;
+    console.log('current parent:',currentParentId);
     const existingIndex = transcriptionStore.findIndex(item => item.parentId === parentId);
     if (existingIndex !== -1) {
         // 如果已存在该 parentId，更新 transcription
@@ -112,32 +74,39 @@ app.post('/update-parent', async(req, res) => {
             transcription: transcriptionForReminder
         });
     }
-    const reminders = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [{
-            role: "system",
-            content: "Divide the given text into meaningful segments and extract keywords for each segment. " +
-                     "Return in the following JSON format: " +
-                     "{ \"segments\": [{ \"text\": \"segment content\", \"keyword\": \"key phrase\" }] }. " +
-                     "Each keyword should not exceed 2 words."
-        }, {
-            role: "user",
-            content: transcriptionForReminder
-        }],
-        temperature: 0.3,
-        response_format: { type: "json_object" }
-    });
-    
-    const segments = JSON.parse(reminders.choices[0].message.content ?? '{}').segments;
-    
-    res.json({ 
-        success: true, 
-        parentId: currentParentId,
-        segments: segments
-    });
-    transcriptionForReminder = '';
 });
-
+app.post('/generate-reminder-talking-points', async (req, res) => {
+    try{
+        const { parentId } = req.body;
+        const transcription = transcriptionStore.find(item => item.parentId === parentId)?.transcription;
+        console.log('see transcription',transcriptionStore);
+        if(!transcription){
+            res.status(404).json({ error: 'Transcription not found' });
+            return;
+        }
+        const reminders = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: [{
+                role: "system",
+                content: "Divide the given text into meaningful segments and extract keywords for each segment. " +
+                         "Return in the following JSON format: " +
+                         "{ \"segments\": [{ \"text\": \"segment content\", \"keyword\": \"key phrase\" }] }. " +
+                         "Each keyword should not exceed 2 words."
+            }, {
+                role: "user",
+                content: transcription
+            }],
+            temperature: 0.3,
+            response_format: { type: "json_object" }
+        });
+        const segments = JSON.parse(reminders.choices[0].message.content ?? '{}').segments;
+        
+        res.json(segments);
+    }catch(error){
+        console.error('Error generating reminder talking points:', error);
+        res.status(500).json({ error: 'Failed to generate reminder talking points' });
+    }
+});
 app.get('/handle-answer-click', async (req, res) => {
     // 设置 SSE headers
     res.setHeader('Content-Type', 'text/event-stream');
@@ -221,10 +190,9 @@ wss.on('connection', (ws:WebSocket) => {
     transcriber.on('transcript', async(transcript: { text: string; message_type: string }) => {
         if (transcript.text && transcript.message_type === 'FinalTranscript') {
             // ws.send(transcript.text);
-            transcriptionBuffer += transcript.text + ' ';
+            transcriptionBuffer += transcript.text;
             transcriptionForMarking += transcript.text;
             transcriptionForReminder += transcript.text;
-            console.log('transcriptionForMarking',transcriptionForMarking);
             const words = transcriptionBuffer.trim().split(/\s+/);
             if (words.length >= 25) {
                 try {
