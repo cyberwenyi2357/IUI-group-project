@@ -60,22 +60,10 @@ const RealTimeTranscription = forwardRef((props:Props, ref) => {
     }, []);
 
     useEffect(()=>{
-        let intervalId: NodeJS.Timeout;
         if(wsRef.current){
             if(isRecording){
             wsRef.current.send('start');
         }}
-        if(isRecording){
-            let toggle = true;
-            intervalId = setInterval(() => {
-                // TODO: yuiz: sorry this is too stupid, let me re-implement it later.
-                // setBorderColor(toggle ? "#F08080" : "transparent"); // 橙红色和蓝色之间切换
-                toggle = !toggle;
-              }, 800); // 每 500 毫秒切换一次颜色
-        }
-        return () => {
-            clearInterval(intervalId);
-          };
     },[isRecording])
 
     useImperativeHandle(ref, () => ({
@@ -139,8 +127,7 @@ const RealTimeTranscription = forwardRef((props:Props, ref) => {
     //         //     setKeywords(keyword);
     //         //     onNodeUpdate(keyword);
     //         //     }
-                
-    //         // }); 
+    //         // });
     //         console.log('transcription updated:', transcriptionForTopic);
     //         setTranscriptionForTopic('');  // 重置 transcription
     //     }
@@ -148,7 +135,8 @@ const RealTimeTranscription = forwardRef((props:Props, ref) => {
 
     return (
         <>
-            <button className={'recording-button'} onClick={handleClick}>
+            <button className={isRecording ? "recording-button-blinking" : "recording-button"}
+                    onClick={handleClick}>
                 {isRecording ? 'Stop' : 'Start'}
             </button>
         </>

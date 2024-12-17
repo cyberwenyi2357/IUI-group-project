@@ -13,9 +13,11 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
 .react-flow__node-editable {
   height: fit-content !important;
 }
+
 body {
   margin: 0;
   box-sizing: border-box;
@@ -53,10 +55,23 @@ button:focus-visible {
   position: absolute;
   right: 5vw;
   top: 1vw;
-  zIndex: 6;
+  z-index: 6;
   border: 5px solid transparent;
 }
 
+.recording-button-blinking {
+  position: absolute;
+  right: 5vw;
+  top: 1vw;
+  z-index: 6;
+  animation: blinking-button 1s infinite;
+}
+
+@keyframes blinking-button {
+  0% { border: 5px solid red; }
+  50% { border: 5px solid blue; }
+  100% { border: 5px solid red; }
+}
 
 .recording-button:focus,
 .recording-button:focus-visible{
