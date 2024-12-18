@@ -135,10 +135,10 @@ const RealTimeTranscription = forwardRef((props:Props, ref) => {
 
     return (
         <>
-            <button className={isRecording ? "recording-button-blinking" : "recording-button"}
-                    onClick={handleClick}>
-                {isRecording ? 'Stop' : 'Start'}
-            </button>
+            {
+                isRecording ? (<button className={"recording-button-blinking"} onClick={handleClick}>Stop</button>)
+                            : (<button className={"recording-button"} onClick={handleClick}>Start</button>)
+            }
         </>
     );
 });

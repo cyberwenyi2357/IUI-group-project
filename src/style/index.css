@@ -43,20 +43,26 @@ button {
   cursor: pointer;
   transition: border-color 0.25s;
 }
+
 button:hover {
   border-color: #646cff;
 }
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-}
+
+/*button:focus,*/
+/*button:focus-visible {*/
+/*  outline: 4px auto -webkit-focus-ring-color;*/
+/*}*/
 
 .recording-button {
   position: absolute;
   right: 5vw;
   top: 1vw;
   z-index: 6;
-  border: 5px solid transparent;
+  border: 1px solid transparent;
+}
+
+.recording-button:hover {
+  border: 1px solid #F08080;
 }
 
 .recording-button-blinking {
@@ -64,19 +70,15 @@ button:focus-visible {
   right: 5vw;
   top: 1vw;
   z-index: 6;
-  animation: blinking-button 1s infinite;
+  animation: blinking-button 1.6s infinite;
 }
 
 @keyframes blinking-button {
-  0% { border: 5px solid red; }
-  50% { border: 5px solid blue; }
-  100% { border: 5px solid red; }
+  0% { border: 1px solid #F08080; }
+  50% { border: 1px solid blue; }
+  100% { border: 1px solid #F08080; }
 }
 
-.recording-button:focus,
-.recording-button:focus-visible{
-  outline: 2px solid #F08080;
-}
 
 @media (prefers-color-scheme: light) {
   :root {
