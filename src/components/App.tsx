@@ -239,22 +239,19 @@ function App() {
 
         setNodes((currentNodes) => {
             // 找出所有可能重叠的节点
-            const overlappingNodes = currentNodes.filter(node => {
+            const nodesUnderSameParent = currentNodes.filter(node => 
+                node.parentId === clickedNode.parentId && node.id !== clickedNode.id
+            );
+            const overlappingNodes = nodesUnderSameParent.filter(node => {
                 // 跳过当前点击的节点
-                if (node.id === clickedNode.id) return false;
-                
-                // 检查节点是否在同一个父节点下
-                if (node.parentId !== clickedNode.parentId) return false;
-    
-                // 检查节点是否与新节点位置重叠
                 const nodeY = node.position.y;
-                
                 return nodeY >= newNode.position.y && 
                        nodeY < newNode.position.y + (newNode.style?.height as number);
             });
-    
+            
             // 如果有重叠的节点，将它们向下移动
             if (overlappingNodes.length > 0) {
+                console.log('overlappingNodes:', overlappingNodes);
                 const shiftAmount = (newNode.style?.height as number) + 10; // 额外添加10px间距
                 
                 return currentNodes.map(node => {
@@ -270,7 +267,6 @@ function App() {
                     return node;
                 }).concat(newNode);
             }
-    
             // 如果没有重叠，直接添加新节点
             return [...currentNodes, newNode];
         });
