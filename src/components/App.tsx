@@ -13,6 +13,7 @@ import {
     type Node,
     type NodeProps, useEdgesState
 } from '@xyflow/react';
+
 import '@xyflow/react/dist/style.css';
 import { openai } from '../utils/openai.ts';
 import ArrowRectangleNode from './ArrowRectangleNode.tsx';
@@ -89,8 +90,8 @@ function App() {
               isVisible={data.forceToolbarVisible || undefined}
               position={data.toolbarPosition}
             >
-              <button onClick={handleAbandon}>abandon</button>
-              <button>regenerate</button>
+              <button onClick={handleAbandon}>✖</button>
+              {/* <button>regenerate</button> */}
             </NodeToolbar>
             <div>{data?.label}</div>
           </>
@@ -236,24 +237,36 @@ function App() {
             },
             connectable:false
         };
-
+        const doNodesOverlap = (node1: Node, node2: Node) => {
+            const node1Width = node1.style?.width || 100;
+            const node1Height = node1.style?.height || 50;
+            const node2Width = node2.style?.width || 100;
+            const node2Height = node2.style?.height || 50;
+    
+            return (
+                Number(node1.position.x) < Number(node2.position.x) + Number(node2Width) &&
+                Number(node1.position.x) + Number(node1Width) > Number(node2.position.x) &&
+                Number(node1.position.y) < Number(node2.position.y) + Number(node2Height) &&
+                Number(node1.position.y) + Number(node1Height) > Number(node2.position.y)
+            );
+        };
+        
         setNodes((currentNodes) => {
             // 找出所有可能重叠的节点
             const nodesUnderSameParent = currentNodes.filter(node => 
-                node.parentId === clickedNode.parentId && node.id !== clickedNode.id
+                node.parentId === clickedNode.parentId && 
+                node.id !== clickedNode.id
             );
-            const overlappingNodes = nodesUnderSameParent.filter(node => {
-                // 跳过当前点击的节点
-                const nodeY = node.position.y;
-                return nodeY >= newNode.position.y && 
-                       nodeY < newNode.position.y + (newNode.style?.height as number);
-            });
+    
+            // Find overlapping nodes
+            const overlappingNodes = nodesUnderSameParent.filter(node => 
+                doNodesOverlap(newNode, node)
+            );
             
             // 如果有重叠的节点，将它们向下移动
             if (overlappingNodes.length > 0) {
                 console.log('overlappingNodes:', overlappingNodes);
-                const shiftAmount = (newNode.style?.height as number) + 10; // 额外添加10px间距
-                
+                const shiftAmount = 50; // height + padding
                 return currentNodes.map(node => {
                     if (overlappingNodes.find(n => n.id === node.id)) {
                         return {
@@ -278,9 +291,10 @@ function App() {
             "time": new Date().toISOString(),
         });
 
-        const clickedNode = nodes.find(node => node.id === nodeId);
-        if (!clickedNode || clickedNode.type !== 'reminderCircle') return;
-        const parentId = clickedNode.parentId;
+        const mostSimilarNode = nodes.find(node => node.id === String(similarityIndex));
+        if (!mostSimilarNode) return;
+        
+        const parentId = mostSimilarNode.parentId;
         try {
             // 调用新的后端接口来生成 talking points
             const response = await fetch('http://localhost:8070/generate-reminder-talking-points', {
@@ -307,10 +321,10 @@ function App() {
                 type: 'arrowRectangle',
                 data: { label: segment.keyword, color: '#FFA500' },
                 position: {
-                    x: parentNode?.position?.x ?? 0 + (parentNode?.style?.width as number)+80,
+                    x: Number(parentNode?.position?.x ?? 0) + (Number(parentNode?.style?.width as number)+80),
                     y: Number(parentNode?.position?.y ?? 0) + (index * 50)
                 },
-                parentId: parentId,
+                // parentId: parentId,
             }));
     
             // 存储新创建的节点
@@ -429,7 +443,7 @@ function App() {
                     nodeCounter++;
                     questionCounterForEachGroup++;
                 });
-                xOffset += 300;
+                xOffset += 450;
                 setNodes(newNodes);
             });
             const totalGroups = result.categories.length;
@@ -468,7 +482,7 @@ function App() {
             if (circleNodes.length === 0) return prevNodes;
 
             // 获取所有 circle nodes 的 id
-            const circleNodeIds = new Set(circleNodes.map(node => node.id));
+            // const circleNodeIds = new Set(circleNodes.map(node => node.id));
             console.log('most similar node parentId:', mostSimilarNode.parentId);
             if (mostSimilarNode.parentId !== currentParentId) {
                 setCurrentParentId(mostSimilarNode.parentId ?? 'Group-0');
@@ -489,11 +503,7 @@ function App() {
             }
     
             // Update circle nodes parentId
-            return prevNodes.map(node => 
-                circleNodeIds.has(node.id)
-                    ? { ...node, parentId: mostSimilarNode.parentId }
-                    : node
-            );
+            return prevNodes;
         });
     }, [similarityIndex]);
 
@@ -619,7 +629,9 @@ function App() {
                     <RealTimeTranscription ref={realTimeTranscriptionRef} onNodeCreate={handleNodeCreate} firstNodeId={firstNodeId}  onSimilarityUpdate={handleSimilarityUpdate} onFirstNodeUpdate={handleFirstNodeUpdate}/>
                     <Background />
                     <Controls />
+                    
                 </ReactFlow>
+                
             </ReactFlowProvider>
         </div>
     );

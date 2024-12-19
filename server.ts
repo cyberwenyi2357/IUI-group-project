@@ -16,11 +16,12 @@ let storedEmbeddings: { text: string, embedding: number[] }[] = [];
 let transcriptionForMarking: string = '';
 let transcriptionForReminder: string = '';
 let transcriptionBuffer: string = '';
-let currentParentId: string | null = null;
+let currentParentId: string = 'Group-0';
 let transcriptionStore: TranscriptionData[] = [];
 interface TranscriptionData {
     parentId: string;
     transcription: string;
+    marked: string[];
 }
 app.use(cors({
     origin: 'http://localhost:5001', // 或者你的前端运行的端口
@@ -70,23 +71,26 @@ app.post('/update-parent', async(req, res) => {
     if (existingIndex !== -1) {
         // 如果已存在该 parentId，更新 transcription
         transcriptionStore[existingIndex].transcription += transcriptionForReminder;
+
     } else {
         // 如果是新的 parentId，创建新记录
         transcriptionStore.push({
             parentId,
-            transcription: transcriptionForReminder
+            transcription: transcriptionForReminder,
+            marked: []
         });
     }
 });
 app.post('/generate-reminder-talking-points', async (req, res) => {
     try{
         const { parentId } = req.body;
-        const transcription = transcriptionStore.find(item => item.parentId === parentId)?.transcription;
+        const transcriptionData = transcriptionStore.find(item => item.parentId === parentId);
         console.log('see transcription',transcriptionStore);
-        if(!transcription){
+        if(!transcriptionData){
             res.status(404).json({ error: 'Transcription not found' });
             return;
         }
+        const { transcription, marked } = transcriptionData;
         const reminders = await openai.chat.completions.create({
             model: "gpt-4o",
             messages: [{
@@ -94,12 +98,14 @@ app.post('/generate-reminder-talking-points', async (req, res) => {
                 content: "Divide the given text into meaningful segments and extract keywords for each segment. " +
                          "Return in the following JSON format: " +
                          "{ \"segments\": [{ \"text\": \"segment content\", \"keyword\": \"key phrase\" }] }. " +
-                         "Each keyword should not exceed 2 words."
+                         "Each keyword should not exceed 2 words. " +
+                         "Please exclude any segments that are related to these already marked keywords: " + 
+                         marked.join(", ")
             }, {
                 role: "user",
                 content: transcription
             }],
-            temperature: 0.3,
+            temperature: 0.8,
             response_format: { type: "json_object" }
         });
         const segments = JSON.parse(reminders.choices[0].message.content ?? '{}').segments;
@@ -132,7 +138,23 @@ app.get('/handle-answer-click', async (req, res) => {
         });
         // 发送第一个结果
         const segments = JSON.parse(segmentResponse.choices[0].message.content || '{}');
-        console.log('segments',segments);
+        // console.log('see clicked parent id',);
+        const existingIndex = transcriptionStore.findIndex(item => item.parentId === currentParentId);
+        if (existingIndex === -1 ) {
+            // 如果记录不存在，创建一个新记录
+            transcriptionStore.push({
+                parentId: currentParentId,
+                transcription: transcriptionForReminder,
+                marked: []
+            });
+        }
+        if (existingIndex !== -1 && segments.keyword) {
+            const keyword = Array.isArray(segments.keyword) ? segments.keyword[0] : segments.keyword;
+            transcriptionStore[existingIndex].marked.push(keyword);
+            console.log('pushed into marked', transcriptionStore[existingIndex].marked);
+        }
+        
+        console.log('segments',JSON.stringify(segments));
         res.write(`event: segments\ndata: ${JSON.stringify(segments)}\n\n`);
         // 第二个 API 调用获取跟进问题
 

@@ -83,15 +83,15 @@ const RealTimeTranscription = forwardRef((props:Props, ref) => {
                 id: `circle-${nodeCounter}`,
                 type: 'circle',
                 data: { keywords: 'Mark' },
-                position: { x: 230, y: 20 },
-                parentId:firstNodeId
+                position: { x: 3 * window.innerWidth/100 + 100, y: 35 },
+                
             };
             const reminderNode: Node = {
                 id: `reminder-${nodeCounter}`,
                 type: 'reminderCircle',
                 data: { keywords: 'Missed?' },
-                position: { x: 300, y: 20 }, // Positioned below the circle node
-                parentId: firstNodeId
+                position: { x: 3 * window.innerWidth/100 + 170, y: 35 }, // Positioned below the circle node
+                
             };
             onNodeCreate(markNode);
             onNodeCreate(reminderNode);
@@ -99,39 +99,6 @@ const RealTimeTranscription = forwardRef((props:Props, ref) => {
         }
     };
 
-    //实时检测topic
-    // useEffect(() => {
-    //     const words = transcriptionForTopic.trim().split(/\s+/);
-    //     if (words.length >= 25) {
-    //         fetch('http://localhost:8070/embedding', {
-    //             method: 'POST',
-    //             headers: {
-    //                 'Content-Type': 'application/json'
-    //             },
-    //             body: JSON.stringify({ text: transcriptionForTopic })
-    //         }).then(response => response.json())
-    //         .then(data => {
-    //             // 提取索引并传递给父组件
-    //             const indices = data.similarities.map((sim: {
-    //                 index: number,
-    //                 similarity: number
-    //             }) =>  ({
-    //                 index: sim.index,
-    //                 similarity: sim.similarity
-    //             }));
-    //             props.onSimilarityUpdate(indices);
-    //         })
-    //         .catch(error => console.error('Error:', error));
-    //         // extractKeywords(transcription).then(keyword=>{
-    //         //     if(keyword){
-    //         //     setKeywords(keyword);
-    //         //     onNodeUpdate(keyword);
-    //         //     }
-    //         // });
-    //         console.log('transcription updated:', transcriptionForTopic);
-    //         setTranscriptionForTopic('');  // 重置 transcription
-    //     }
-    // }, [transcriptionForTopic]);
 
     return (
         <>
