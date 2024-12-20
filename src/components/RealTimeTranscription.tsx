@@ -11,60 +11,20 @@ interface Props {
     onNodeCreate: (newNode: Node) => void;
     firstNodeId: string | null;
     onFirstNodeUpdate: () => void;
-    onSimilarityUpdate: (data: Array<{index: number, similarity: number}>) => void;
+    isRecording: boolean;
+    setIsRecording: (isRecording: boolean) => void;
+    // onSimilarityUpdate: (data: Array<{index: number, similarity: number}>) => void;
 }
 
 const RealTimeTranscription = forwardRef((props:Props, ref) => {
-    const { onNodeCreate, firstNodeId } = props;
+    const { onNodeCreate, firstNodeId, isRecording, setIsRecording } = props;
     const [transcriptionForTopic, setTranscriptionForTopic] = useState('');
-    const [isRecording, setIsRecording] = useState(false);
+    // const [isRecording, setIsRecording] = useState(false);
 
     const wsRef=useRef<WebSocket|null>(null);
     const [nodeCounter, setNodeCounter] = useState(1);
 
-    useEffect(() => {
-        // 建立 WebSocket 连接
-        wsRef.current= new WebSocket('ws://localhost:8080');
-        wsRef.current.onopen = () => {
-            console.log('WebSocket connected');
-        };
-        wsRef.current.onerror = (error) => {
-            console.error('WebSocket error:', error);
-        };
-        wsRef.current.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                console.log('Received WebSocket message:', event.data);
-                // 检查是否是 similarity 类型的消息
-                if (data.type === 'similarity') {
-                    // 提取索引并传递给父组件
-                    const indices = data.data.map((sim: {
-                        index: number,
-                        similarity: number
-                    }) => ({
-                        index: sim.index,
-                        similarity: sim.similarity
-                    }));
-                    props.onSimilarityUpdate(indices);
-                } 
-            } catch (error) {
-                console.error('Error parsing WebSocket message:', error);
-            }
-        };
-
-        return () => {
-            if(wsRef.current && wsRef.current.readyState===1){
-                wsRef.current.close();
-            }
-        };
-    }, []);
-
-    useEffect(()=>{
-        if(wsRef.current){
-            if(isRecording){
-            wsRef.current.send('start');
-        }}
-    },[isRecording])
+    
 
     useImperativeHandle(ref, () => ({
         getTranscriptionContent: () => transcriptionForTopic,
@@ -76,7 +36,7 @@ const RealTimeTranscription = forwardRef((props:Props, ref) => {
             "time": new Date().toISOString(),
         });
 
-        setIsRecording((prev) => !prev);
+        setIsRecording(!isRecording)
         if (!isRecording && firstNodeId) {
             props.onFirstNodeUpdate();
             const markNode:Node = {

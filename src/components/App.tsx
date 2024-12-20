@@ -44,7 +44,8 @@ function App() {
     const [scriptText, setScriptText] = useState('');
     const [similarityIndex, setSimilarityIndex] = useState(0);
     const simIndexRef = useRef(similarityIndex);
-
+    const wsRef = useRef<WebSocket|null>(null);
+    const [isRecording, setIsRecording] = useState(false);
     const [firstNodeId, setFirstNodeId] = useState<string | null>(null);
     const [currentParentId, setCurrentParentId] = useState<string>(' ');
     const [tagNodeCounter, setTagNodeCounter] = useState<number[]>([]);
@@ -54,7 +55,9 @@ function App() {
     const [highlightedNodeIds, setHighlightedNodeIds] = useState<Set<string>>(new Set());
     let xOffset = 50;
     let nodeCounter = 0;
-
+    const handleRecordingChange = (newState: boolean) => {
+        setIsRecording(newState);
+    };
     const nodeTypes = {
         editable: (props: NodeProps) => (
             <EditableNode
@@ -83,7 +86,51 @@ function App() {
         ),
         'node-with-toolbar':NodeWithToolbar
     };
+    useEffect(() => {
+        // 建立 WebSocket 连接
+        wsRef.current= new WebSocket('ws://localhost:8080');
+        wsRef.current.onopen = () => {
+            console.log('WebSocket connected');
+        };
+        wsRef.current.onerror = (error) => {
+            console.error('WebSocket error:', error);
+        };
+        wsRef.current.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                console.log('Received WebSocket message:', event.data);
+                // 检查是否是 similarity 类型的消息
+                if (data.type === 'similarity') {
+                    // 提取索引并传递给父组件
+                    const indices = data.data.map((sim: {
+                        index: number,
+                        text: string,
+                        similarity: number
+                    }) => ({
+                        index: sim.index,
+                        text: sim.text,
+                        similarity: sim.similarity
+                    }));
+                   handleSimilarityUpdate(indices);
+                } 
+            } catch (error) {
+                console.error('Error parsing WebSocket message:', error);
+            }
+        };
 
+        return () => {
+            if(wsRef.current && wsRef.current.readyState===1){
+                wsRef.current.close();
+            }
+        };
+    }, []);
+
+    useEffect(()=>{
+        if(wsRef.current){
+            if(isRecording){
+            wsRef.current.send('start');
+        }}
+    },[isRecording])
     function NodeWithToolbar({ data, id }) {
         const handleAbandon = () => {
             console.log('Abandoning node:', id);
@@ -123,7 +170,7 @@ function App() {
 
     useEffect(() => {
         console.log('tagNodeCounter updated:', tagNodeCounter);
-        // 创建 EventSource 连接
+        // // 创建 EventSource 连接
         const eventSource = new EventSource('http://localhost:8070/handle-answer-click');
     
         // 处理分段摘要
@@ -211,6 +258,72 @@ function App() {
             return newCounter; 
         });
         console.log(JSON.stringify(tagNodeCounter));
+         // 创建 EventSource 连接
+        //  const eventSource = new EventSource('http://localhost:8070/handle-answer-click');
+    
+        //  // 处理分段摘要
+        //  eventSource.addEventListener('segments', (event) => {
+        //      const segments = JSON.parse(event.data);
+        //      console.log('received segments from backend:', segments.data);
+ 
+        //      setNodes((prevNodes) => {
+        //          const mostSimilarNode = prevNodes.find(node =>
+        //              node.type === 'editable' &&
+        //              node.style?.backgroundColor &&
+        //              node.style.backgroundColor !== 'white'
+        //          );
+ 
+        //          console.log('mostSimilarNode:', mostSimilarNode);
+        //          if(!mostSimilarNode) return prevNodes;
+                 
+        //          const currentCount = tagNodeCounter[Number(mostSimilarNode.id)] || 0;
+        //          console.log('currentCount:', currentCount);
+        //          const newNode = {
+        //              id: `${mostSimilarNode.id}-${currentCount}`,
+        //              type: 'arrowRectangle',
+        //              data: { label: segments.keyword},
+        //              position: {
+        //                  x: mostSimilarNode.position.x + (currentCount-1)*80,
+        //                  y: mostSimilarNode.position.y + 50
+        //              },
+        //              parentId: mostSimilarNode.parentId
+        //          };
+        //          return [...prevNodes, newNode];
+        //      });
+        //  });
+     
+        //  // 处理跟进问题
+        //  eventSource.addEventListener('followUp', (event) => {
+        //      const { followUpQuestion } = JSON.parse(event.data);
+        //      console.log('Received follow-up question:', followUpQuestion);
+        //      // 解析 JSON 字符串
+        //      // 在这里处理跟进问题
+        //      // 比如设置到某个状态中
+        //      setNodes(prevNodes => {
+        //          const newNodes = [...prevNodes];
+        //          const lastNode = newNodes[newNodes.length - 1];
+        //          if (lastNode) {
+        //              lastNode.data = {
+        //                  ...lastNode.data,
+        //                  followUp: followUpQuestion,
+        //              };
+        //          }
+        //          console.log('last node:', lastNode);
+        //          return newNodes;
+        //      });
+        //      eventSource.close();
+        //  });
+     
+        //  // 错误处理
+        //  eventSource.addEventListener('error', (event) => {
+        //      console.error('Error:', event);
+        //      eventSource.close();
+        //  });
+     
+        //  // 清理函数
+        //  return () => {
+        //      eventSource.close();
+        //  };
     }
 
     const handleArrowRectangleNodeClick = async (followUp: string, event: React.MouseEvent, nodeData: Node) => {
@@ -492,6 +605,7 @@ function App() {
 
     useEffect(() => {
         simIndexRef.current = similarityIndex;
+        
         setNodes((prevNodes) => {
             const mostSimilarNode = prevNodes.find(node => node.id === String(similarityIndex));
             if (!mostSimilarNode) return prevNodes;
@@ -525,8 +639,12 @@ function App() {
         });
     }, [similarityIndex]);
 
-    const handleSimilarityUpdate = (similarityData: Array<{index: number, similarity: number}>) => {
+    const handleSimilarityUpdate = (similarityData: Array<{index: number, text: string, similarity: number}>) => {
         setSimilarityIndex(similarityData[0].index);
+        console.log('handleSimilarityUpdate triggered',similarityData);
+        console.log('Received similarityData:', similarityData);
+        console.log('First similarity index:', similarityData[0]?.index);
+        console.log('First similarity text:', similarityData[0]?.text);
         // setHighlightedNodeIds(prev => new Set([...prev, similarityData[0].index.toString()]));
         // console.log('highlighted node ids:', highlightedNodeIds);
         // TODO: 1. record the highlighted node here in this function, record the number of tageNodes inside the highlighted node.
@@ -534,29 +652,67 @@ function App() {
         // 例如：高亮显示相似的节点
         setNodes(nodes => nodes.map(node =>{
             // 只更新 type 为 'question' 的节点
-            if (node.type === 'editable') {
-                const matchingData = similarityData.find(data => data.index === Number(node.id));
-                if (matchingData) {
-                    // 使用 rgba 模型，根据相似度设置透明度
-                    const opacity = Math.pow(matchingData.similarity, 2);  // 使用平方来增加差异
-                    return {
-                        ...node,
-                        style: {
-                            ...node.style,
-                            backgroundColor: `rgba(255, 255, ${(1-opacity)*255}, 1)`  // 黄色，透明度根据相似度变化
-                        }
-                    };
-                }  else {
-                    // Never highlighted node - white
-                    return {
-                        ...node,
-                        style: {
-                            ...node.style,
-                            backgroundColor: 'white'
-                        }
-                    };
+    //         if (node.type === 'editable') {
+                
+    //             console.log('All data.text values:', similarityData.map(data => data.text));
+    //             const labelLength = node.data.label.length;
+    // console.log('Label length:', labelLength);
+    // const matchingData = similarityData.find(data => {
+    //     // 从后往前截取相同长度的字符串
+    //     const slicedText = data.text.slice(-labelLength);
+    //     console.log('Comparing:', {
+    //         'Original text': data.text,
+    //         'Sliced text': slicedText,
+    //         'Node label': node.data.label
+    //     });
+    //     return slicedText === node.data.label;
+    // });
+    
+    // console.log(`Node ${node.id} matching data:`, matchingData);
+    //             if (matchingData) {
+    //                 // 使用 rgba 模型，根据相似度设置透明度
+    //                 const opacity = Math.pow(matchingData.similarity, 2);  // 使用平方来增加差异
+    //                 return {
+    //                     ...node,
+    //                     style: {
+    //                         ...node.style,
+    //                         backgroundColor: `rgba(255, 255, ${(1-opacity)*255}, 1)`  // 黄色，透明度根据相似度变化
+    //                     }
+    //                 };
+    //             }  else {
+    //                 // Never highlighted node - white
+    //                 return {
+    //                     ...node,
+    //                     style: {
+    //                         ...node.style,
+    //                         backgroundColor: 'white'
+    //                     }
+    //                 };
+    //             }
+    //         }
+    if (node.type === 'editable') {
+        const matchingData = similarityData.find(data => data.index === Number(node.id));
+        if (matchingData) {
+            // 使用 rgba 模型，根据相似度设置透明度
+            const opacity = Math.pow(matchingData.similarity, 2);  // 使用平方来增加差异
+            return {
+                ...node,
+                style: {
+                    ...node.style,
+                    backgroundColor: `rgba(255, 255, ${(1-opacity)*255}, 1)`  // 黄色，透明度根据相似度变化
                 }
-            }
+            };
+        }  else {
+            // Never highlighted node - white
+            return {
+                ...node,
+                style: {
+                    ...node.style,
+                    backgroundColor: 'white'
+                }
+            };
+        }
+    }
             // 其他类型的节点保持不变
             return node;
         } ));
@@ -646,7 +802,13 @@ function App() {
                     fitView
                 >
                     <MiniMap zoomable pannable nodeClassName={'intersection-flow'} />
-                    <RealTimeTranscription ref={realTimeTranscriptionRef} onNodeCreate={handleNodeCreate} firstNodeId={firstNodeId}  onSimilarityUpdate={handleSimilarityUpdate} onFirstNodeUpdate={handleFirstNodeUpdate}/>
+                    <RealTimeTranscription ref={realTimeTranscriptionRef} 
+                    onNodeCreate={handleNodeCreate} 
+                    firstNodeId={firstNodeId}  
+                    // onSimilarityUpdate={handleSimilarityUpdate} 
+                    onFirstNodeUpdate={handleFirstNodeUpdate} 
+                    isRecording={isRecording} 
+                    setIsRecording={setIsRecording} />
                     <Background />
                     <Controls />
                     

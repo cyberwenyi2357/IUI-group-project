@@ -138,6 +138,7 @@ app.get('/handle-answer-click', async (req, res) => {
         });
         // 发送第一个结果
         const segments = JSON.parse(segmentResponse.choices[0].message.content || '{}');
+        console.log('get segments',segments);
         // console.log('see clicked parent id',);
         const existingIndex = transcriptionStore.findIndex(item => item.parentId === currentParentId);
         if (existingIndex === -1 ) {
@@ -148,7 +149,7 @@ app.get('/handle-answer-click', async (req, res) => {
                 marked: []
             });
         }
-        if (existingIndex !== -1 && segments.keyword) {
+        if (existingIndex !== -1 ) {
             const keyword = Array.isArray(segments.keyword) ? segments.keyword[0] : segments.keyword;
             transcriptionStore[existingIndex].marked.push(keyword);
             console.log('pushed into marked', transcriptionStore[existingIndex].marked);
@@ -162,7 +163,7 @@ app.get('/handle-answer-click', async (req, res) => {
             model: "gpt-4o",
             messages: [{
                 role: "system",
-                content: "You are investigating how mixed reality users would interact with one intelligent robot to finish searching tasks. You are given a piece of user's answer in transcriptForMarking, please suggest one follow up question. Please be brief, just give some keywords/concepts of the question, but not a complete question. "
+                content: "You are investigating how adapted practices have changed the meanings and use of different spaces in the context of the pandemic. Please be brief, just give some keywords/concepts of the question, but not a complete question. "
             }, {
                 role: "user",
                 content: transcriptionForMarking
@@ -277,11 +278,26 @@ wss.on('connection', (ws:WebSocket) => {
                         }))
                         .sort((a, b) => b.similarity - a.similarity)
                         .slice(0, 1);
-
-                        ws.send(JSON.stringify({
-                            type: 'similarity',
-                            data: similarities
+                        console.log('similarities',similarities);
+                        const simplifiedData = similarities.map(item => ({
+                            index: item.index,
+                            text: item.text
                         }));
+                        if (similarities.length > 0 
+                            // && similarities[0].similarity > 0.5
+                        ) {
+                            // 发送相似度数据
+                            ws.send(JSON.stringify({
+                                type: 'similarity',
+                                data: similarities
+                            }));
+    
+                            // 从 storedEmbeddings 中移除最相似的节点
+                            const mostSimilarText = similarities[0].text;
+                            console.log('mostSimilarText',mostSimilarText);
+                            // storedEmbeddings = storedEmbeddings.filter(embedding => embedding.text !== mostSimilarText);
+                            // console.log(`Removed embedding with text "${mostSimilarText}". Remaining embeddings: ${storedEmbeddings.length}`);
+                        }
                     
                     console.log('see transcription',transcriptionBuffer);
                     // 清空缓冲区
