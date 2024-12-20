@@ -1,5 +1,5 @@
 import {NodeProps} from "@xyflow/react";
-import {useEffect, useRef, useState} from "react";
+import {useCallback, useEffect, useRef, useState} from "react";
 
 export default function EditableNode({ id, data }: NodeProps) {
     const [label, setLabel] = useState(data.label);
@@ -19,8 +19,13 @@ export default function EditableNode({ id, data }: NodeProps) {
     const handleChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
         setLabel(event.target.value);
     };
+    // const handleClick = () => {
+    //     onClick?.(id);  // 调用父组件传递的处理函数
+    // };
     return (
-        <div style={{ padding: 10, border: '1px solid #000', borderRadius: 2 }}>
+        <div style={{ padding: 10, border: '1px solid #000', borderRadius: 2 }}
+        
+        >
             <textarea
                 ref={textareaRef}
                 value={label as string}

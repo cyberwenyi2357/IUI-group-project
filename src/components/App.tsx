@@ -51,11 +51,17 @@ function App() {
 
     // 在App组件的开头添加新的状态
     const [storedSegmentNodes, setStoredSegmentNodes] = useState<Node[]>([]);
+    const [highlightedNodeIds, setHighlightedNodeIds] = useState<Set<string>>(new Set());
     let xOffset = 50;
     let nodeCounter = 0;
 
     const nodeTypes = {
-        editable: EditableNode,
+        editable: (props: NodeProps) => (
+            <EditableNode
+                {...props}
+               
+            />
+        ),
         circle: (props: NodeProps) => (
             <CircleNode
                 {...props}
@@ -314,19 +320,22 @@ function App() {
         
             // 找到父节点以获取位置信息
             const parentNode = nodes.find(node => node.id === parentId);
-            
+            console.log('parentNode x position:', parentNode?.position?.x);
+            console.log('parentNode width:', parentNode?.style?.width);
+
             // 创建新节点
             const newNodes = segments.map((segment: { keyword: string }, index: number) => ({
                 id: `segment-${Date.now()}-${index}`,
                 type: 'arrowRectangle',
                 data: { label: segment.keyword, color: '#FFA500' },
                 position: {
-                    x: Number(parentNode?.position?.x ?? 0) + (Number(parentNode?.style?.width as number)+80),
+                    x: 390,
                     y: Number(parentNode?.position?.y ?? 0) + (index * 50)
                 },
-                // parentId: parentId,
+                parentId: parentId,
+                // extent: 'viewport',
             }));
-    
+            console.log('Created new segment node:', newNodes);
             // 存储新创建的节点
             setStoredSegmentNodes(newNodes);
             // 立即显示节点
@@ -447,6 +456,15 @@ function App() {
                 setNodes(newNodes);
             });
             const totalGroups = result.categories.length;
+            console.log('All Group Node IDs:', newNodes
+                .filter(node => node.type === 'group')
+                .map(node => node.id)
+            );
+            
+            console.log('All Question Node IDs:', newNodes
+                .filter(node => node.type === 'editable')
+                .map(node => node.id)
+            );
         } catch (error) {
             console.error('Error parsing text with GPT:', error);
             alert('Error processing the text. Please try again.');
@@ -509,6 +527,8 @@ function App() {
 
     const handleSimilarityUpdate = (similarityData: Array<{index: number, similarity: number}>) => {
         setSimilarityIndex(similarityData[0].index);
+        // setHighlightedNodeIds(prev => new Set([...prev, similarityData[0].index.toString()]));
+        // console.log('highlighted node ids:', highlightedNodeIds);
         // TODO: 1. record the highlighted node here in this function, record the number of tageNodes inside the highlighted node.
         // 这里可以用这些索引更新节点状态
         // 例如：高亮显示相似的节点
@@ -526,8 +546,8 @@ function App() {
                             backgroundColor: `rgba(255, 255, ${(1-opacity)*255}, 1)`  // 黄色，透明度根据相似度变化
                         }
                     };
-                } else {
-                    // 不是相似度最高的两个节点，设置为白色
+                }  else {
+                    // Never highlighted node - white
                     return {
                         ...node,
                         style: {

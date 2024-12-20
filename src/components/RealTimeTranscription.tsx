@@ -34,7 +34,7 @@ const RealTimeTranscription = forwardRef((props:Props, ref) => {
         wsRef.current.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
-                
+                console.log('Received WebSocket message:', event.data);
                 // 检查是否是 similarity 类型的消息
                 if (data.type === 'similarity') {
                     // 提取索引并传递给父组件
@@ -83,14 +83,14 @@ const RealTimeTranscription = forwardRef((props:Props, ref) => {
                 id: `circle-${nodeCounter}`,
                 type: 'circle',
                 data: { keywords: 'Mark' },
-                position: { x: 3 * window.innerWidth/100 + 100, y: 35 },
+                position: { x: 100, y: 35 },
                 
             };
             const reminderNode: Node = {
                 id: `reminder-${nodeCounter}`,
                 type: 'reminderCircle',
                 data: { keywords: 'Missed?' },
-                position: { x: 3 * window.innerWidth/100 + 170, y: 35 }, // Positioned below the circle node
+                position: { x:  170, y: 35 }, // Positioned below the circle node
                 
             };
             onNodeCreate(markNode);

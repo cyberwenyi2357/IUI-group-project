@@ -162,7 +162,7 @@ app.get('/handle-answer-click', async (req, res) => {
             model: "gpt-4o",
             messages: [{
                 role: "system",
-                content: "You are investigating students' opinion on collaborative learning and their requirements for intelligent agents. You are given a piece of user's answer in transcriptForMarking, please suggest one follow up question. Please be brief, just give some keywords/concepts of the question, but not a complete question. "
+                content: "You are investigating how mixed reality users would interact with one intelligent robot to finish searching tasks. You are given a piece of user's answer in transcriptForMarking, please suggest one follow up question. Please be brief, just give some keywords/concepts of the question, but not a complete question. "
             }, {
                 role: "user",
                 content: transcriptionForMarking
@@ -252,8 +252,8 @@ wss.on('connection', (ws:WebSocket) => {
     });
 
     transcriber.on('transcript', async(transcript: { text: string; message_type: string }) => {
+        // console.log('Processing FinalTranscript:', transcript.text);
         if (transcript.text && transcript.message_type === 'FinalTranscript') {
-            // ws.send(transcript.text);
             transcriptionBuffer += transcript.text;
             transcriptionForMarking += transcript.text;
             transcriptionForReminder += transcript.text;
@@ -278,12 +278,12 @@ wss.on('connection', (ws:WebSocket) => {
                         .sort((a, b) => b.similarity - a.similarity)
                         .slice(0, 1);
 
-                    // 通过 WebSocket 发送相似度结果
-                    ws.send(JSON.stringify({
-                        type: 'similarity',
-                        data: similarities
-                    }));
-
+                        ws.send(JSON.stringify({
+                            type: 'similarity',
+                            data: similarities
+                        }));
+                    
+                    console.log('see transcription',transcriptionBuffer);
                     // 清空缓冲区
                     transcriptionBuffer = '';
                 } catch (error) {
